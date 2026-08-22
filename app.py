@@ -321,7 +321,11 @@ with st.sidebar:
                + (" · API 키 적용" if creds.api_key else "")
                + (" · Gemini 고도화 가능" if secret("GEMINI_API_KEY") else " · GEMINI_API_KEY 없음"))
     if st.session_state.snapshot:
-        st.info(f"일일 스냅샷 표시 중 ({fmt_dt(st.session_state.snapshot['generatedAt'])}). 조건을 바꿔 분석하면 실시간 결과로 전환됩니다.")
+        snap = st.session_state.snapshot
+        st.info(f"일일 스냅샷 표시 중 ({fmt_dt(snap['generatedAt'])}). 조건을 바꿔 분석하면 실시간 결과로 전환됩니다.")
+        # 초록은 매일, AI 분석은 주 1회 갱신된다. 둘의 시점이 다르므로 명시한다.
+        if snap.get("aiRefreshedAt") and snap["aiRefreshedAt"] != snap["generatedAt"]:
+            st.caption(f"AI 동향·제안은 {fmt_dt(snap['aiRefreshedAt'])} 기준입니다 (주 1회 금요일 갱신). 초록은 매일 갱신됩니다.")
 
 # 첫 진입: 스냅샷이 있으면 바로, 없으면 기본 1년 범위로 실시간 분석.
 if not st.session_state.booted:

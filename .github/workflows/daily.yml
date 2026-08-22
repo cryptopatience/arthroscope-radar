@@ -2,9 +2,15 @@ name: daily-radar
 
 on:
   schedule:
-    # 18:00 KST = 09:00 UTC
-    - cron: "0 9 * * *"
+    # 18:17 KST = 09:17 UTC. 정각은 GitHub 스케줄러가 혼잡해 지연이 크다.
+    # 초록 수집은 매일, Gemini 분석은 금요일에만 (scripts/daily.py의 GEMINI_WEEKDAY).
+    - cron: "17 9 * * *"
   workflow_dispatch:
+    inputs:
+      force_gemini:
+        description: "Gemini 분석을 요일과 무관하게 강제로 실행"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -30,6 +36,7 @@ jobs:
           NCBI_TOOL_EMAIL: ${{ secrets.NCBI_TOOL_EMAIL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_FORCE: ${{ inputs.force_gemini && '1' || '' }}
         run: python scripts/daily.py
       - name: Commit snapshot
         run: |
