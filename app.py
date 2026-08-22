@@ -92,7 +92,8 @@ def require_login():
                                 placeholder="접근 암호")
         submitted = st.form_submit_button("입장 ↗", type="primary")
     if submitted:
-        if hmac.compare_digest(entered, password):
+        # 바이트로 비교한다. compare_digest는 비ASCII 문자열을 직접 받으면 TypeError를 낸다(한글 암호).
+        if hmac.compare_digest(entered.encode("utf-8"), password.encode("utf-8")):
             st.session_state.authed = True
             st.rerun()
         st.error("암호가 일치하지 않습니다.")
