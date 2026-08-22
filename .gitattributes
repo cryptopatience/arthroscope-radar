@@ -1,0 +1,2 @@
+# 저장소에는 항상 LF로. GitHub Actions의 run 블록이 CRLF로 깨지는 것을 막는다.
+* text=auto eol=lf

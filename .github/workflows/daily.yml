@@ -1,0 +1,44 @@
+name: daily-radar
+
+on:
+  schedule:
+    # 18:00 KST = 09:00 UTC
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-radar
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Collect and analyse
+        env:
+          NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+          NCBI_TOOL_EMAIL: ${{ secrets.NCBI_TOOL_EMAIL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+        run: python scripts/daily.py
+      - name: Commit snapshot
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- data/daily.json && [ -n "$(git ls-files data/daily.json)" ]; then
+            echo "변경 없음 — 커밋을 건너뜁니다."; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/daily.json
+          git commit -m "chore: 일일 무릎 연구 레이더 갱신 ($(date -u +%Y-%m-%d))"
+          git push

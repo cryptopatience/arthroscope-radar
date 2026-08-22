@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.streamlit/secrets.toml
+data/saved_ideas.json
+.venv/
+
+# Google Drive / Windows 부산물
+desktop.ini
+Thumbs.db
+.tmp.drive*
