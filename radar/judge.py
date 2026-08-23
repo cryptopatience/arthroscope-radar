@@ -24,13 +24,13 @@ import requests
 from . import config
 from .gemini import GEMINI_DEFAULT_MODEL, call_gemini
 from .vocabulary import (CANONICAL_OUTCOME_VERSION, GAP_CATEGORIES, KEYWORD_DICT_VERSION,
-                         STRUCTURAL_PRIORS, canonical)
+                         LONGTERM_SUBTYPES, STRUCTURAL_PRIORS, canonical)
 
 # 판정에 넣는 대표 논문 수. 제목만 보내므로 고도화보다 훨씬 싸다.
 JUDGE_TITLES = 12
 # 판정 프롬프트나 아래 스키마를 고치면 이 값을 올린다. 캐시 키에 들어가므로 옛 판정이 무효화된다.
 # 프롬프트만 바꾸고 이 값을 안 올리면 지난 판정이 그대로 재사용된다.
-JUDGE_PROMPT_VERSION = "5"
+JUDGE_PROMPT_VERSION = "6"
 # 안정성 측정 반복 수. 홀수여야 동률이 덜 생긴다.
 JUDGE_RUNS = 5
 # 교차 검증용 두 번째 Gemini 모델. 같은 회사지만 크기·학습이 달라 판정이 실제로 갈린다.
@@ -145,6 +145,9 @@ def judge_prompt(idea: dict, scope: str, period: str, titles: list[str]) -> str:
     category = idea.get("gapCategory", "")
     category_note = (GAP_CATEGORIES.get(category) or {}).get("note", "")
     structural_prior = STRUCTURAL_PRIORS.get(category, "")
+    subtype = idea.get("gapSubtype") or ""
+    subtype_note = f" / 세부 유형: {subtype} — {LONGTERM_SUBTYPES[subtype]}" if subtype in LONGTERM_SUBTYPES else ""
+    mixed = spec.get("subtypeNote", "")
     primary = ", ".join(spec.get("primary") or []) or "정의되지 않음"
     reviewed = "전문가 확인됨" if spec.get("reviewed") else "잠정값 (전문가 확인 전)"
     return f"""당신은 정형외과 무릎 분야의 연구 심사자입니다. 규칙 기반 분석기가 문헌 통계에서 공백을 하나 찾았습니다. 이 공백이 실제 연구 기회인지, 그 분야의 정상적 특성인지 판정하십시오.
@@ -153,7 +156,7 @@ def judge_prompt(idea: dict, scope: str, period: str, titles: list[str]) -> str:
 
 [판정 대상 — 클러스터 하나가 아니라 "클러스터 × 공백" 하나입니다]
 클러스터: {cluster}
-공백 종류: {category} — {category_note}
+공백 종류: {category} — {category_note}{subtype_note}
 제목: {idea.get('title', '')}
 통계 근거: {idea.get('rationale', '')}
 
@@ -162,6 +165,7 @@ def judge_prompt(idea: dict, scope: str, period: str, titles: list[str]) -> str:
 
 [이 종류의 공백에서 흔히 '구조적'인 경우]
 {structural_prior}
+{("[주의] " + mixed + " 이 경우 하나의 기준 결과변수로 판정할 수 없으므로 uncertain으로 판정하십시오.") if mixed else ""}
 
 [해당 주제의 대표 논문 제목]
 {chr(10).join(f'- {t}' for t in titles)}

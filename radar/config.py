@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 
-CONFIG_VERSION = "2"
+CONFIG_VERSION = "3"
 
 # ---------------------------------------------------------------------------
 # 공백 탐지
@@ -34,6 +34,11 @@ GAP_H_LIMITED = 0.2
 # 시간적 근거: 전반기·후반기로 나눠 다시 잰다
 GAP_TEMPORAL_MIN_HALF = 8
 GAP_TEMPORAL_SHIFT = 0.05
+
+# 한 클러스터 안에 성격이 다른 연구가 섞였을 때(형평성 = 접근성 vs 결과 격차)
+# 1위 하위유형이 2위의 몇 배여야 그쪽으로 확정할지. 못 넘으면 mixed로 둔다.
+# 경험값이므로 백테스트 대상이다.
+SUBTYPE_DOMINANCE_RATIO = 1.3
 
 # 트렌드
 MIN_TREND_COUNT = 20

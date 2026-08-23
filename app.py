@@ -19,7 +19,7 @@ from radar.analysis import FAMILIES, FAMILY_ORDER, JOURNAL_ORDER, JOURNALS, Anal
 from radar.gemini import ENHANCE_MIN, GEMINI_DEFAULT_MODEL, enhance_idea, pmids_for_idea
 from radar.judge import VERDICT_LABEL, evidence_summary
 from radar.selection import PROM_SUBTYPES, gap_category, select
-from radar.vocabulary import GAP_CATEGORIES
+from radar.vocabulary import GAP_CATEGORIES, LONGTERM_SUBTYPES
 from radar.ncbi import NcbiCredentials
 
 TREND_ROWS = 9          # 편수 순 표에서 먼저 보여주는 행 수. 그 아래 상승 신호는 따로 덧붙인다.
@@ -749,6 +749,9 @@ def render_idea(n: int, idea: dict):
         category = gap_category(idea)
         badge = (f'<span class="gapcat">{GAP_CATEGORIES[category]["label"]}</span>'
                  if category in GAP_CATEGORIES else '<span class="gapcat">분류 없음</span>')
+        subtype = idea.get("gapSubtype")
+        if subtype in LONGTERM_SUBTYPES:
+            badge += f'<span class="tag" title="{LONGTERM_SUBTYPES[subtype]}">{subtype}</span>'
         top_l.markdown(f"**{n:02d}** &nbsp; " + badge
                        + "".join(f'<span class="tag">{t}</span>' for t in idea["tags"]), unsafe_allow_html=True)
         top_r.markdown(f"<div style='text-align:right;font-size:12px'>독창성 <b>{idea['novelty']}/5</b> · 실현성 <b>{idea['feasibility']}/5</b></div>", unsafe_allow_html=True)

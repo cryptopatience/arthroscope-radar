@@ -12,7 +12,7 @@ from __future__ import annotations
 # 용어 사전을 고치면 올린다.
 KEYWORD_DICT_VERSION = "1"
 # 분야별 기준 결과변수(CANONICAL_OUTCOMES)를 고치면 올린다.
-CANONICAL_OUTCOME_VERSION = "5"
+CANONICAL_OUTCOME_VERSION = "6"
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +142,9 @@ CANONICAL_OUTCOMES = {
         "primary": ["discrimination (AUC)", "calibration", "external validation", "clinical utility"],
         # 모델 성능 지표는 시점 지표다. 장기 질문은 성능이 시간에 따라 유지되는지를 묻는다.
         # 예측모델의 장기 평가는 모델이 예측하려는 기간에 따라 달라진다.
-        "longterm": ["예측기간 시점의 calibration 유지", "성능의 시간적 안정성(temporal validation)"],
+        # "유지"는 같은 모델을 여러 시기에 반복 평가해 drift를 본 경우에만 쓴다.
+        # 한 시점의 장기 예측 성능은 "5년 예측모델의 5년 시점 calibration"이다.
+        "longterm": ["5년 예측모델의 5년 시점 calibration", "5년 시점 discrimination"],
         "horizon": "모델의 예측기간(예: 5년)",
         "prom_role": "contextual", "reviewed": True,
     },
@@ -288,9 +290,40 @@ def longterm_outcomes(spec: dict) -> list[str]:
     return [o for o in (spec.get("primary") or []) if time_attribute(o) in LONGTERM_OK]
 
 
+# 장기 공백도 한 종류가 아니다. 같은 longterm_durability라도 무엇을 묻는지가 다르고,
+# 그에 따라 설계가 달라진다.
+LONGTERM_SUBTYPES = {
+    "durability": "결과가 유지되는가 (생존·재파열)",
+    "cumulative_risk": "기간이 길수록 쌓이는 위험 (누적 재수술·재입원·비용)",
+    "sustained_recovery": "회복이 유지되는가 (PROM·기능 궤적)",
+    "temporal_trend": "격차·비율이 시간에 따라 변하는가 (인구집단 추세)",
+    "prediction_horizon": "예측기간 시점의 모델 성능",
+}
+
+
+def longterm_subtype(spec: dict, outcomes: list[str]) -> str:
+    """장기 공백의 하위 유형. 설계를 정하는 근거라 카테고리만으로는 부족하다."""
+    if spec.get("populationLevel"):
+        return "temporal_trend"
+    blob = " ".join(outcomes)
+    if any(time_attribute(o) == "horizon_dependent" for o in outcomes):
+        return "prediction_horizon"
+    if "누적" in blob:
+        return "cumulative_risk"
+    if any(word in blob for word in ("PROM", "회복", "기능", "만족도", "활동 수준")):
+        return "sustained_recovery"
+    return "durability"
+
+
 def horizon(spec: dict) -> str:
     """이 분야에서 '장기'가 몇 년인지. 5년으로 고정하면 분야마다 틀린다."""
     return spec.get("horizon") or "5년"
+
+
+def variant_scores(spec: dict, texts: list[str]) -> dict:
+    blob = " ".join(texts).lower()
+    return {name: sum(blob.count(term.lower()) for term in variant["terms"])
+            for name, variant in (spec.get("variants") or {}).items()}
 
 
 def resolve(topic: str, texts: list[str]) -> dict:
@@ -298,21 +331,28 @@ def resolve(topic: str, texts: list[str]) -> dict:
 
     형평성처럼 한 이름 아래 성격이 다른 연구가 섞이는 클러스터가 있다. 접근성
     연구와 수술 후 결과 격차 연구는 1차 결과도 PROM의 위치도 다르므로, 그 묶음에
-    실제로 무엇이 많은지 세어 정한다. 변이가 없으면 원래 정의를 그대로 쓴다.
+    실제로 무엇이 많은지 세어 정한다.
+
+    1위가 뚜렷하지 않으면 임의로 한쪽에 보내지 않고 mixed로 둔다. 이때 PROM 역할은
+    보수적인 기본값(primary가 아님)을 유지하고, 판정 프롬프트에 섞여 있다는 사실을
+    알려 uncertain 쪽으로 기울게 한다.
     """
+    from . import config
     spec = canonical(topic)
-    variants = spec.get("variants")
-    if not variants or not texts:
+    if not spec.get("variants") or not texts:
         return spec
-    blob = " ".join(texts).lower()
-    scores = {name: sum(blob.count(term.lower()) for term in variant["terms"])
-              for name, variant in variants.items()}
+    scores = variant_scores(spec, texts)
+    if not scores or not max(scores.values()):
+        return spec
     best = max(scores, key=lambda name: scores[name])
-    # 뚜렷하지 않으면(2위의 1.3배 미만) 갈라놓지 않고 보수적인 기본 정의를 쓴다.
     others = sorted((v for k, v in scores.items() if k != best), reverse=True)
-    if not scores[best] or (others and scores[best] < others[0] * 1.3):
-        return spec
-    return {**spec, **variants[best], "variant": best}
+    if others and scores[best] < others[0] * config.SUBTYPE_DOMINANCE_RATIO:
+        return {**spec, "variant": "mixed", "variantScores": scores,
+                "subtypeNote": "이 묶음에는 " + " / ".join(
+                    f"{v['label']}({scores[k]}회)" for k, v in spec["variants"].items())
+                + " 연구가 비슷한 비중으로 섞여 있습니다. 1차 결과가 서로 다르므로 "
+                  "하나의 정의로 판정할 수 없습니다."}
+    return {**spec, **spec["variants"][best], "variant": best, "variantScores": scores}
 
 
 PROM_GAP_HARD_BLOCK = {"not_applicable"}

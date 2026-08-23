@@ -19,7 +19,7 @@ from .vocabulary import (ACCURACY_TERMS, DIRECT_COMPARISON_TERMS, EXTERNAL_VALID
                          LONGTERM_TERMS, PATIENT_OUTCOME_TERMS, PROM_CLINICAL_INTERPRETATION,
                          PROM_INSTRUMENTS, PROM_MEASUREMENT_ERROR, PROM_GAP_HARD_BLOCK,
                          PROM_GAP_NEEDS_STRONG, TECHNOLOGY_CLUSTERS, canonical, horizon,
-                         longterm_outcomes, resolve)
+                         longterm_outcomes, longterm_subtype, resolve, variant_scores)
 
 # ---------------------------------------------------------------------------
 # 저널·계열·주제 정의
@@ -219,6 +219,9 @@ class Idea:
     clusterId: str = ""
     gapId: str = ""
     gapCategory: str = ""
+    # 같은 카테고리 안에서도 무엇을 묻는지가 다르고 그에 따라 설계가 달라진다.
+    # longterm_durability 하나에도 durability·cumulative_risk·temporal_trend가 섞인다.
+    gapSubtype: str = ""
     outcomeSubtype: str = ""
     canonical: dict = field(default_factory=dict)
 
@@ -603,9 +606,9 @@ def _passes(metrics: dict) -> bool:
 
 
 def _idea(cluster: str, gap_id: str, category: str, subtype: str,
-          spec: dict | None = None, **kwargs) -> Idea:
+          spec: dict | None = None, gap_subtype: str = "", **kwargs) -> Idea:
     return Idea(id=f"{cluster}::{gap_id}", clusterId=cluster, gapId=gap_id,
-                gapCategory=category, outcomeSubtype=subtype,
+                gapCategory=category, outcomeSubtype=subtype, gapSubtype=gap_subtype,
                 canonical=spec if spec is not None else canonical(cluster), **kwargs)
 
 
@@ -631,6 +634,31 @@ def _strong(metrics: dict) -> bool:
     """근거가 강한가. contextual 역할에서 PROM 공백을 올릴지 판단할 때 쓴다."""
     return (metrics.get("sufficiency") == "충분"
             and abs(metrics.get("effectSize", 0)) >= GAP_H_SOLID)
+
+
+def _analysis_units(cluster: str, pool: list[Article]) -> list[tuple[dict, list[Article], str]]:
+    """이 클러스터를 몇 개의 단위로 볼지 정한다.
+
+    보통은 하나다. 형평성처럼 성격이 다른 연구가 비슷한 비중으로 섞인 경우
+    (mixed), 각 하위집단이 최소 표본을 넘으면 **별도 gap으로 나눠서** 평가한다.
+    한쪽으로 임의 배정하면 다른 쪽 연구의 1차 결과가 통째로 틀린 기준이 된다.
+    표본이 모자라면 나누지 않고 mixed 그대로 둔다 — 판정이 uncertain으로 간다.
+    """
+    texts = [f"{a.title} {a.abstract}" for a in pool]
+    spec = resolve(cluster, texts)
+    if spec.get("variant") != "mixed":
+        return [(spec, pool, "")]
+
+    variants = spec.get("variants") or {}
+    units: list[tuple[dict, list[Article], str]] = []
+    for name, variant in variants.items():
+        terms = [t.lower() for t in variant["terms"]]
+        sub = [a for a in pool
+               if any(t in f"{a.title} {a.abstract}".lower() for t in terms)]
+        if len(sub) >= IDEA_MIN_POOL:
+            units.append(({**spec, **variant, "variant": name}, sub, f"@{name}"))
+    # 양쪽 다 충분해야 나눈다. 한쪽만 충분하면 나머지가 조용히 사라진다.
+    return units if len(units) == len(variants) else [(spec, pool, "")]
 
 
 def generate_ideas(articles: list[Article], trends: list[Trend],
@@ -665,208 +693,209 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
         candidates.append((strength, kind, lead, axis, idea))
 
     for trend in ranked:
-        pool = pools[trend.label]
-        if len(pool) < IDEA_MIN_POOL:
+        cluster_pool = pools[trend.label]
+        if len(cluster_pool) < IDEA_MIN_POOL:
             continue
         cluster = trend.label
         # 한 이름 아래 성격이 다른 연구가 섞이는 클러스터(형평성 = 접근성 vs 결과 격차)는
         # 실제 문헌 구성을 보고 하위 유형을 정한다. 전체를 한 정의로 묶으면 접근성
         # 연구에 PROM이 없는 것을 다시 공백으로 오판한다.
-        spec = resolve(cluster, [f"{a.title} {a.abstract}" for a in pool])
-        # 추세는 필수조건이 아니라 보조 가점이다. 백테스트에서 모멘텀이 다음 시기의
-        # 공백 축소를 예측하지 못했다.
-        gw = 1 + config.TREND_BONUS if trend.signal == "rising" else 1
-        delta_text = f"{'+' if trend.delta > 0 else ''}{trend.delta}%"
-        # 이 주제를 다루지 않는 나머지 초록이 비교 기준. 주제 자신을 기준선에 넣으면
-        # 큰 주제일수록 자기 자신과 비교하게 되어 공백이 희석된다.
-        rest = [a for a in articles if cluster not in a.topics]
+        for spec, pool, unit in _analysis_units(cluster, cluster_pool):
+            # 추세는 필수조건이 아니라 보조 가점이다. 백테스트에서 모멘텀이 다음 시기의
+            # 공백 축소를 예측하지 못했다.
+            gw = 1 + config.TREND_BONUS if trend.signal == "rising" else 1
+            delta_text = f"{'+' if trend.delta > 0 else ''}{trend.delta}%"
+            # 이 주제를 다루지 않는 나머지 초록이 비교 기준. 주제 자신을 기준선에 넣으면
+            # 큰 주제일수록 자기 자신과 비교하게 되어 공백이 희석된다.
+            rest = [a for a in articles if cluster not in a.topics]
 
-        # --- D1. PROM 측정 공백 (outcome_measurement) ---------------------
-        # 생성을 막는 것은 not_applicable뿐이다. secondary는 "중요하지 않다"가 아니라
-        # "1차 결과가 아니다"라는 뜻이라 막으면 너무 강하다 — 감염이 치료된 환자의
-        # 기능 회복은 여전히 연구 가치가 있다. 후보로 올리고 판정과 점수에 맡긴다.
-        # contextual은 근거가 강할 때만 올린다.
-        if cluster != "PROM·기대치" and spec["prom_role"] not in PROM_GAP_HARD_BLOCK:
-            m = _gap_metrics(pool, rest, lambda a: _has(a, "prom"), stamps, midpoint)
-            needs_strong = spec["prom_role"] in PROM_GAP_NEEDS_STRONG
-            if _passes(m) and (not needs_strong or _strong(m)):
-                add(m["z"] * gw, "outcome", cluster, None, _idea(
-                    cluster, "prom_measurement", "outcome_measurement", "prom", spec,
-                    title=f"{cluster} 연구는 환자가 보고한 결과를 함께 재고 있는가?",
-                    rationale=(f"이 범위에서 {with_particle(cluster, '은', '는')} {len(pool)}편({trend.share}%)이고 "
-                               f"전반기 대비 {delta_text} 변화했습니다. 환자보고결과를 함께 잰 초록은 "
-                               f"{m['observed']}편({_pct(m['ratio'])}%)으로, 나머지 문헌의 {_pct(m['baseline'])}%보다 "
-                               f"{m['z']:.1f}표준편차 낮습니다(효과크기 {m['effectSize']:.2f}). "
-                               f"이 분야의 기준 결과변수는 {', '.join(spec['primary'][:3])}이며"
-                               + (" PROM은 이차적입니다. 그럼에도 그 지표가 좋아진 환자의 기능·삶의 질이 "
-                                  "함께 좋아지는지는 따로 물을 수 있습니다."
-                                  if spec["prom_role"] == "secondary"
-                                  else ", PROM은 그와 나란히 볼 가치가 있는 축입니다.")),
-                    pico=f"{cluster} 관련 수술·시술을 받은 성인에서, {_primary(spec, '기존 1차 결과')}의 개선이 "
-                         "12개월 PROM 변화와 함께 가는지 평가",
-                    design="후향 코호트 + 시간순 내부검증 (기존 PROM 추적자료 활용)",
-                    primaryEndpoint=f"{_primary(spec, '1차 결과')} 개선군의 12개월 PROM 변화량",
-                    novelty=_clamp(2 + m["z"] / 3), feasibility=5,
-                    evidence=_pick_evidence(pool), tags=[cluster, "PROM", "결과지표 공백"],
-                    metrics=m))
-
-        # --- D2. PROM 임상해석 공백 (outcome_measurement) -------------------
-        # PROM을 이미 충분히 쓰는 분야에서만 묻는다. 20편 중 3편만 PROM을 쟀는데
-        # "그중 MCID 해석이 없다"는 것은 해석 공백이 아니라 표본 부족이다.
-        prom_pool = [a for a in pool if _has(a, "prom")]
-        prom_rest = [a for a in rest if _has(a, "prom")]
-        if (spec["prom_role"] not in PROM_GAP_HARD_BLOCK
-                and len(prom_pool) >= config.PROM_INTERP_MIN_BASE and prom_rest):
-            m = _gap_metrics(prom_pool, prom_rest, lambda a: _has(a, "prom_interpretation"), stamps, midpoint)
-            if m["ratio"] <= config.PROM_INTERP_MAX_RATIO and _passes(m):
-                add(m["z"] * 1.3 * gw, "outcome", cluster, "prom_interpretation", _idea(
-                    cluster, "prom_interpretation", "outcome_measurement", "prom_interpretation", spec,
-                    title=f"{cluster}의 PROM 변화는 환자에게 의미 있는 크기인가?",
-                    rationale=(f"{cluster} {len(pool)}편 중 PROM을 보고한 초록은 {len(prom_pool)}편으로 충분합니다. "
-                               f"그런데 그중 MCID·PASS·SCB·responder로 해석까지 한 초록은 {m['observed']}편"
-                               f"({_pct(m['ratio'])}%)뿐이고, 다른 분야 PROM 논문의 {_pct(m['baseline'])}%보다 "
-                               f"{m['z']:.1f}표준편차 낮습니다. 점수가 좋아졌다는 것과 환자가 좋아졌다고 "
-                               "느낀다는 것은 다른 진술입니다."),
-                    pico=f"{cluster} 환자에서, 12개월 PROM 변화가 해당 도구의 MCID·PASS 기준을 넘는 비율과 그 예측인자 평가",
-                    design="기존 PROM 추적 코호트의 anchor 기반 역치 산출 + 외부 코호트 확인",
-                    primaryEndpoint="12개월 PROM의 MCID 달성률 및 PASS 도달률",
-                    novelty=_clamp(3 + m["z"] / 3), feasibility=4,
-                    evidence=_pick_evidence(prom_pool), tags=[cluster, "MCID·PASS", "해석 공백"],
-                    metrics=m))
-
-        # --- D3. 설계 공백 (methodology) -----------------------------------
-        m = _gap_metrics(pool, rest, lambda a: a.design in PROSPECTIVE_DESIGNS, stamps, midpoint)
-        if _passes(m):
-            # 설계 공백은 해결책이 명확해(전향 등록) 결과 공백보다 조금 우대한다.
-            add(m["z"] * 1.2 * gw, "design", cluster, None, _idea(
-                cluster, "prospective_design", "methodology", "design", spec,
-                title=f"{cluster}의 후향적 결론을 전향적으로 재현할 수 있는가?",
-                rationale=(f"{cluster} {len(pool)}편 중 전향적 연구·무작위시험은 {m['observed']}편({_pct(m['ratio'])}%)으로, "
-                           f"나머지 문헌의 {_pct(m['baseline'])}%보다 {m['z']:.1f}표준편차 낮습니다. "
-                           "대부분 후향 자료에 기대고 있어 적응증 선택 편향을 배제하지 못합니다. "
-                           "단일 기관 전향 등록만으로도 근거 수준을 한 단계 올릴 수 있는 구간입니다."),
-                pico=f"{cluster} 적응증 환자에서, 사전 정의된 프로토콜에 따른 전향 추적이 기존 후향 보고와 같은 결과를 보이는지 검증",
-                design="단일·다기관 전향 관찰 등록연구 (사전 등록 권장)",
-                primaryEndpoint=f"사전 정의된 12개월 {_primary(spec, '주요 결과')}의 재현 여부",
-                novelty=_clamp(2 + m["z"] / 3), feasibility=3,
-                evidence=_pick_evidence(pool), tags=[cluster, "전향 검증", "근거수준 공백"],
-                metrics=m))
-
-        # --- D4. 직접 비교 공백 (comparator) --------------------------------
-        m = _gap_metrics(pool, rest, lambda a: _has(a, "direct_comparison"), stamps, midpoint)
-        if _passes(m):
-            add(m["z"] * 1.25 * gw, "comparator", cluster, None, _idea(
-                cluster, "direct_comparison", "comparator", "comparator", spec,
-                title=f"{cluster}에서 선택지끼리의 직접 비교가 있는가?",
-                rationale=(f"{cluster} {len(pool)}편 중 두 선택지를 직접 비교한 초록(무작위·성향점수 매칭·대조군 설정)은 "
-                           f"{m['observed']}편({_pct(m['ratio'])}%)으로, 나머지 문헌의 {_pct(m['baseline'])}%보다 "
-                           f"{m['z']:.1f}표준편차 낮습니다. 단일군 보고가 쌓여도 "
-                           "\"무엇을 골라야 하는가\"에는 답하지 못합니다."),
-                pico=f"{cluster} 적응증 환자에서, 임상에서 실제로 갈리는 두 선택지를 직접 비교했을 때 "
-                     f"{_primary(spec, '결과')} 차이 평가",
-                design="성향점수 매칭 비교 코호트 또는 실용적 무작위시험",
-                primaryEndpoint=f"두 군 간 12개월 {_primary(spec, '1차 결과', 2)} 차이",
-                novelty=_clamp(3 + m["z"] / 3), feasibility=3,
-                evidence=_pick_evidence(pool), tags=[cluster, "직접 비교", "비교군 공백"],
-                metrics=m))
-
-        # --- D5. 장기 결과 공백 (longterm_durability) ------------------------
-        # 1차 결과변수를 그대로 쓰면 "5년 시점의 재원기간" 같은 문장이 나온다.
-        # 재원기간·당일 퇴원·정렬 정확도는 수술 당시 한 번 재는 지표라 장기 질문의
-        # 결과변수가 될 수 없다. 그 분야의 지속 가능한 지표를 따로 가져온다.
-        durable = longterm_outcomes(spec)
-        span = horizon(spec)
-        # 인구집단 단위 질문(접근성 격차)에는 "수술 후 추적"이라는 말이 성립하지 않는다.
-        lead = f"{span}에 걸친" if spec.get("populationLevel") else f"수술 후 {span} 추적 시"
-        m = _gap_metrics(pool, rest, lambda a: _has(a, "longterm"), stamps, midpoint)
-        if durable and _passes(m):
-            add(m["z"] * gw, "longterm", cluster, None, _idea(
-                cluster, "longterm_followup", "longterm_durability", "longterm", spec,
-                title=f"{cluster}의 초기 결과는 5년 뒤에도 유지되는가?",
-                rationale=(f"{cluster} {len(pool)}편 중 장기 추적·생존분석을 보고한 초록은 {m['observed']}편"
-                           f"({_pct(m['ratio'])}%)으로, 나머지 문헌의 {_pct(m['baseline'])}%보다 "
-                           f"{m['z']:.1f}표준편차 낮습니다. 단기에 좋다는 것이 {span} 뒤에도 좋다는 뜻은 아닙니다. "
-                           f"이 분야에서 장기적으로 물을 수 있는 지표는 {'·'.join(durable[:3])}입니다."),
-                pico=(f"{cluster} 관련 인구집단에서, {lead} {'·'.join(durable[:2])} 평가"
-                      if spec.get("populationLevel") else
-                      f"{cluster} 대상 환자에서, {lead} {'·'.join(durable[:2])} 평가"),
-                design=spec.get("longtermDesign") or "기존 코호트의 장기 연장 추적 또는 등록자료 생존분석",
-                primaryEndpoint=f"{lead} {'·'.join(durable[:2])}",
-                novelty=_clamp(3 + m["z"] / 3), feasibility=3,
-                evidence=_pick_evidence(pool), tags=[cluster, "장기 추적", "장기결과 공백"],
-                metrics=m))
-
-        # --- D6. 임상적 유용성 공백 (clinical_utility_implementation) --------
-        # 기술 클러스터 고유의 공백. 정확도가 좋아진 것과 진료가 달라진 것은 다르다.
-        if cluster in TECHNOLOGY_CLUSTERS:
-            acc_pool = [a for a in pool if _has(a, "accuracy_metric")]
-            acc_rest = [a for a in rest if _has(a, "accuracy_metric")]
-            if len(acc_pool) >= IDEA_MIN_POOL and acc_rest:
-                m = _gap_metrics(acc_pool, acc_rest, lambda a: _has(a, "patient_outcome"), stamps, midpoint)
-                if _passes(m):
-                    add(m["z"] * 1.35 * gw, "utility", cluster, None, _idea(
-                        cluster, "clinical_utility", "clinical_utility_implementation", "utility", spec,
-                        title=f"{cluster}의 정확도 향상이 실제 환자 결과를 바꾸는가?",
-                        rationale=(f"{cluster}에서 정확도·성능 지표를 보고한 초록 {len(acc_pool)}편 중 "
-                                   f"합병증·재수술·기능 같은 환자 결과까지 함께 본 초록은 {m['observed']}편"
-                                   f"({_pct(m['ratio'])}%)입니다. 다른 분야의 같은 비교에서는 {_pct(m['baseline'])}%로, "
-                                   f"{m['z']:.1f}표준편차 차이입니다. 이 분야의 기준 결과변수는 "
-                                   f"{', '.join(spec['primary'][:3])}이지만, 그 개선이 진료 결정이나 "
-                                   "환자 결과로 이어졌다는 근거는 아직 얇습니다."),
-                        pico=f"{cluster}를 적용한 환자에서, 기존 방식 대비 정확도 향상이 12개월 임상 결과 차이로 이어지는지 평가",
-                        design="전향 비교 코호트 (정확도와 임상 결과를 같은 환자에서 동시 측정)",
-                        primaryEndpoint="12개월 합병증·재수술률 및 기능 결과의 군간 차이",
-                        novelty=_clamp(4 + m["z"] / 3), feasibility=3,
-                        evidence=_pick_evidence(acc_pool), tags=[cluster, "임상적 유용성", "유용성 공백"],
+            # --- D1. PROM 측정 공백 (outcome_measurement) ---------------------
+            # 생성을 막는 것은 not_applicable뿐이다. secondary는 "중요하지 않다"가 아니라
+            # "1차 결과가 아니다"라는 뜻이라 막으면 너무 강하다 — 감염이 치료된 환자의
+            # 기능 회복은 여전히 연구 가치가 있다. 후보로 올리고 판정과 점수에 맡긴다.
+            # contextual은 근거가 강할 때만 올린다.
+            if cluster != "PROM·기대치" and spec["prom_role"] not in PROM_GAP_HARD_BLOCK:
+                m = _gap_metrics(pool, rest, lambda a: _has(a, "prom"), stamps, midpoint)
+                needs_strong = spec["prom_role"] in PROM_GAP_NEEDS_STRONG
+                if _passes(m) and (not needs_strong or _strong(m)):
+                    add(m["z"] * gw, "outcome", cluster, None, _idea(
+                        cluster, "prom_measurement" + unit, "outcome_measurement", "prom", spec,
+                        title=f"{cluster} 연구는 환자가 보고한 결과를 함께 재고 있는가?",
+                        rationale=(f"이 범위에서 {with_particle(cluster, '은', '는')} {len(pool)}편({trend.share}%)이고 "
+                                   f"전반기 대비 {delta_text} 변화했습니다. 환자보고결과를 함께 잰 초록은 "
+                                   f"{m['observed']}편({_pct(m['ratio'])}%)으로, 나머지 문헌의 {_pct(m['baseline'])}%보다 "
+                                   f"{m['z']:.1f}표준편차 낮습니다(효과크기 {m['effectSize']:.2f}). "
+                                   f"이 분야의 기준 결과변수는 {', '.join(spec['primary'][:3])}이며"
+                                   + (" PROM은 이차적입니다. 그럼에도 그 지표가 좋아진 환자의 기능·삶의 질이 "
+                                      "함께 좋아지는지는 따로 물을 수 있습니다."
+                                      if spec["prom_role"] == "secondary"
+                                      else ", PROM은 그와 나란히 볼 가치가 있는 축입니다.")),
+                        pico=f"{cluster} 관련 수술·시술을 받은 성인에서, {_primary(spec, '기존 1차 결과')}의 개선이 "
+                             "12개월 PROM 변화와 함께 가는지 평가",
+                        design="후향 코호트 + 시간순 내부검증 (기존 PROM 추적자료 활용)",
+                        primaryEndpoint=f"{_primary(spec, '1차 결과')} 개선군의 12개월 PROM 변화량",
+                        novelty=_clamp(2 + m["z"] / 3), feasibility=5,
+                        evidence=_pick_evidence(pool), tags=[cluster, "PROM", "결과지표 공백"],
                         metrics=m))
 
-        # --- D7. 외부검증 공백 (population_external_validity) ----------------
-        m = _gap_metrics(pool, rest, lambda a: _has(a, "external_validation"), stamps, midpoint)
-        if _passes(m):
-            add(m["z"] * gw, "external", cluster, "external_validation", _idea(
-                cluster, "external_validation", "population_external_validity", "external_validation", spec,
-                title=f"{cluster}의 결과는 다른 기관·집단에서도 재현되는가?",
-                rationale=(f"{cluster} {len(pool)}편 중 다기관·등록자료·외부 코호트 검증을 언급한 초록은 "
-                           f"{m['observed']}편({_pct(m['ratio'])}%)으로, 나머지 문헌의 {_pct(m['baseline'])}%보다 "
-                           f"{m['z']:.1f}표준편차 낮습니다. 단일 기관 결과가 다른 환자 구성·술기에서 "
-                           "그대로 나오는지는 따로 확인해야 합니다."),
-                pico=f"{cluster}에서 확립된 {with_particle(_primary(spec, '결과', 2), '을', '를')} "
-                     "독립 기관·등록자료 코호트에 적용했을 때 같은 방향·크기의 결과가 나오는지 검증",
-                design="외부 코호트 검증 연구 (다기관 또는 국가 등록자료)",
-                primaryEndpoint=f"외부 코호트에서의 {_primary(spec, '1차 결과', 2)} 재현성 (효과크기 및 보정 성능)",
-                novelty=_clamp(3 + m["z"] / 3), feasibility=3,
-                evidence=_pick_evidence(pool), tags=[cluster, "외부검증", "외부검증 공백"],
-                metrics=m))
+            # --- D2. PROM 임상해석 공백 (outcome_measurement) -------------------
+            # PROM을 이미 충분히 쓰는 분야에서만 묻는다. 20편 중 3편만 PROM을 쟀는데
+            # "그중 MCID 해석이 없다"는 것은 해석 공백이 아니라 표본 부족이다.
+            prom_pool = [a for a in pool if _has(a, "prom")]
+            prom_rest = [a for a in rest if _has(a, "prom")]
+            if (spec["prom_role"] not in PROM_GAP_HARD_BLOCK
+                    and len(prom_pool) >= config.PROM_INTERP_MIN_BASE and prom_rest):
+                m = _gap_metrics(prom_pool, prom_rest, lambda a: _has(a, "prom_interpretation"), stamps, midpoint)
+                if m["ratio"] <= config.PROM_INTERP_MAX_RATIO and _passes(m):
+                    add(m["z"] * 1.3 * gw, "outcome", cluster, "prom_interpretation" + unit, _idea(
+                        cluster, "prom_interpretation", "outcome_measurement", "prom_interpretation", spec,
+                        title=f"{cluster}의 PROM 변화는 환자에게 의미 있는 크기인가?",
+                        rationale=(f"{cluster} {len(pool)}편 중 PROM을 보고한 초록은 {len(prom_pool)}편으로 충분합니다. "
+                                   f"그런데 그중 MCID·PASS·SCB·responder로 해석까지 한 초록은 {m['observed']}편"
+                                   f"({_pct(m['ratio'])}%)뿐이고, 다른 분야 PROM 논문의 {_pct(m['baseline'])}%보다 "
+                                   f"{m['z']:.1f}표준편차 낮습니다. 점수가 좋아졌다는 것과 환자가 좋아졌다고 "
+                                   "느낀다는 것은 다른 진술입니다."),
+                        pico=f"{cluster} 환자에서, 12개월 PROM 변화가 해당 도구의 MCID·PASS 기준을 넘는 비율과 그 예측인자 평가",
+                        design="기존 PROM 추적 코호트의 anchor 기반 역치 산출 + 외부 코호트 확인",
+                        primaryEndpoint="12개월 PROM의 MCID 달성률 및 PASS 도달률",
+                        novelty=_clamp(3 + m["z"] / 3), feasibility=4,
+                        evidence=_pick_evidence(prom_pool), tags=[cluster, "MCID·PASS", "해석 공백"],
+                        metrics=m))
 
-        # --- D8. 하위집단 공백 (population_external_validity) ----------------
-        for group in SUBGROUPS:
-            label = group["label"]
-            if label in cluster:
-                continue
-            family = group.get("family")
-            if family and _family_share(pool, family) < 0.5:
-                continue    # 이 주제는 해당 계열 문헌이 주류가 아니다 → 범주 오류
-            base = _baseline(rest, lambda a: label in subgroup_map[a.pmid])
-            if base < 0.04:            # 코퍼스 자체가 거의 안 다루면 공백이 아니라 관심 밖이다
-                continue
-            m = _gap_metrics(pool, rest, lambda a, g=label: g in subgroup_map[a.pmid], stamps, midpoint)
-            if not _passes(m):
-                continue
-            observed = [a for a in pool if label in subgroup_map[a.pmid]]
-            add(m["z"] * gw, "subgroup", cluster, label, _idea(
-                cluster, f"subgroup_{label}", "population_external_validity", "subgroup", spec,
-                title=f"{cluster} 연구에서 {with_particle(label, '은', '는')} 따로 검증됐는가?",
-                rationale=(f"이 범위 전체에서 {with_particle(label, '을', '를')} 명시적으로 다룬 초록은 {_pct(m['baseline'])}%인데, "
-                           f"{cluster} {len(pool)}편 중에서는 {m['observed']}편({_pct(m['ratio'])}%)뿐입니다"
-                           f"(기준선보다 {m['z']:.1f}표준편차 낮음). "
-                           "결과가 갈릴 가능성이 큰 환자군인데 하위군 분석이 비어 있는 구간입니다."),
-                pico=f"{label}에 해당하는 무릎 환자에서, {cluster}에서 확립된 개입이 전체 코호트와 "
-                     f"같은 방향의 {with_particle(_primary(spec, '결과', 2), '을', '를')} 보이는지 평가",
-                design="기존 코호트의 사전 정의된 하위군 분석 (검정력 확인 후) 또는 해당 환자군 전향 등록",
-                primaryEndpoint=f"전체 코호트 대비 {label} 하위군의 12개월 {_primary(spec, '1차 결과', 2)} 차이 (교호작용 검정)",
-                novelty=_clamp(3 + m["z"] / 3), feasibility=4,
-                evidence=_pick_evidence(observed or pool), tags=[cluster, label, "하위집단 공백"],
-                metrics=m))
+            # --- D3. 설계 공백 (methodology) -----------------------------------
+            m = _gap_metrics(pool, rest, lambda a: a.design in PROSPECTIVE_DESIGNS, stamps, midpoint)
+            if _passes(m):
+                # 설계 공백은 해결책이 명확해(전향 등록) 결과 공백보다 조금 우대한다.
+                add(m["z"] * 1.2 * gw, "design", cluster, None, _idea(
+                    cluster, "prospective_design" + unit, "methodology", "design", spec,
+                    title=f"{cluster}의 후향적 결론을 전향적으로 재현할 수 있는가?",
+                    rationale=(f"{cluster} {len(pool)}편 중 전향적 연구·무작위시험은 {m['observed']}편({_pct(m['ratio'])}%)으로, "
+                               f"나머지 문헌의 {_pct(m['baseline'])}%보다 {m['z']:.1f}표준편차 낮습니다. "
+                               "대부분 후향 자료에 기대고 있어 적응증 선택 편향을 배제하지 못합니다. "
+                               "단일 기관 전향 등록만으로도 근거 수준을 한 단계 올릴 수 있는 구간입니다."),
+                    pico=f"{cluster} 적응증 환자에서, 사전 정의된 프로토콜에 따른 전향 추적이 기존 후향 보고와 같은 결과를 보이는지 검증",
+                    design="단일·다기관 전향 관찰 등록연구 (사전 등록 권장)",
+                    primaryEndpoint=f"사전 정의된 12개월 {_primary(spec, '주요 결과')}의 재현 여부",
+                    novelty=_clamp(2 + m["z"] / 3), feasibility=3,
+                    evidence=_pick_evidence(pool), tags=[cluster, "전향 검증", "근거수준 공백"],
+                    metrics=m))
+
+            # --- D4. 직접 비교 공백 (comparator) --------------------------------
+            m = _gap_metrics(pool, rest, lambda a: _has(a, "direct_comparison"), stamps, midpoint)
+            if _passes(m):
+                add(m["z"] * 1.25 * gw, "comparator", cluster, None, _idea(
+                    cluster, "direct_comparison" + unit, "comparator", "comparator", spec,
+                    title=f"{cluster}에서 선택지끼리의 직접 비교가 있는가?",
+                    rationale=(f"{cluster} {len(pool)}편 중 두 선택지를 직접 비교한 초록(무작위·성향점수 매칭·대조군 설정)은 "
+                               f"{m['observed']}편({_pct(m['ratio'])}%)으로, 나머지 문헌의 {_pct(m['baseline'])}%보다 "
+                               f"{m['z']:.1f}표준편차 낮습니다. 단일군 보고가 쌓여도 "
+                               "\"무엇을 골라야 하는가\"에는 답하지 못합니다."),
+                    pico=f"{cluster} 적응증 환자에서, 임상에서 실제로 갈리는 두 선택지를 직접 비교했을 때 "
+                         f"{_primary(spec, '결과')} 차이 평가",
+                    design="성향점수 매칭 비교 코호트 또는 실용적 무작위시험",
+                    primaryEndpoint=f"두 군 간 12개월 {_primary(spec, '1차 결과', 2)} 차이",
+                    novelty=_clamp(3 + m["z"] / 3), feasibility=3,
+                    evidence=_pick_evidence(pool), tags=[cluster, "직접 비교", "비교군 공백"],
+                    metrics=m))
+
+            # --- D5. 장기 결과 공백 (longterm_durability) ------------------------
+            # 1차 결과변수를 그대로 쓰면 "5년 시점의 재원기간" 같은 문장이 나온다.
+            # 재원기간·당일 퇴원·정렬 정확도는 수술 당시 한 번 재는 지표라 장기 질문의
+            # 결과변수가 될 수 없다. 그 분야의 지속 가능한 지표를 따로 가져온다.
+            durable = longterm_outcomes(spec)
+            span = horizon(spec)
+            # 인구집단 단위 질문(접근성 격차)에는 "수술 후 추적"이라는 말이 성립하지 않는다.
+            lead = f"{span}에 걸친" if spec.get("populationLevel") else f"수술 후 {span} 추적 시"
+            m = _gap_metrics(pool, rest, lambda a: _has(a, "longterm"), stamps, midpoint)
+            if durable and _passes(m):
+                add(m["z"] * gw, "longterm", cluster, None, _idea(
+                    cluster, "longterm_followup" + unit, "longterm_durability", "longterm", spec,
+                    gap_subtype=longterm_subtype(spec, durable),
+                    title=f"{cluster}의 초기 결과는 5년 뒤에도 유지되는가?",
+                    rationale=(f"{cluster} {len(pool)}편 중 장기 추적·생존분석을 보고한 초록은 {m['observed']}편"
+                               f"({_pct(m['ratio'])}%)으로, 나머지 문헌의 {_pct(m['baseline'])}%보다 "
+                               f"{m['z']:.1f}표준편차 낮습니다. 단기에 좋다는 것이 {span} 뒤에도 좋다는 뜻은 아닙니다. "
+                               f"이 분야에서 장기적으로 물을 수 있는 지표는 {'·'.join(durable[:3])}입니다."),
+                    pico=(f"{cluster} 관련 인구집단에서, {lead} {'·'.join(durable[:2])} 평가"
+                          if spec.get("populationLevel") else
+                          f"{cluster} 대상 환자에서, {lead} {'·'.join(durable[:2])} 평가"),
+                    design=spec.get("longtermDesign") or "기존 코호트의 장기 연장 추적 또는 등록자료 생존분석",
+                    primaryEndpoint=f"{lead} {'·'.join(durable[:2])}",
+                    novelty=_clamp(3 + m["z"] / 3), feasibility=3,
+                    evidence=_pick_evidence(pool), tags=[cluster, "장기 추적", "장기결과 공백"],
+                    metrics=m))
+
+            # --- D6. 임상적 유용성 공백 (clinical_utility_implementation) --------
+            # 기술 클러스터 고유의 공백. 정확도가 좋아진 것과 진료가 달라진 것은 다르다.
+            if cluster in TECHNOLOGY_CLUSTERS:
+                acc_pool = [a for a in pool if _has(a, "accuracy_metric")]
+                acc_rest = [a for a in rest if _has(a, "accuracy_metric")]
+                if len(acc_pool) >= IDEA_MIN_POOL and acc_rest:
+                    m = _gap_metrics(acc_pool, acc_rest, lambda a: _has(a, "patient_outcome"), stamps, midpoint)
+                    if _passes(m):
+                        add(m["z"] * 1.35 * gw, "utility", cluster, None, _idea(
+                            cluster, "clinical_utility" + unit, "clinical_utility_implementation", "utility", spec,
+                            title=f"{cluster}의 정확도 향상이 실제 환자 결과를 바꾸는가?",
+                            rationale=(f"{cluster}에서 정확도·성능 지표를 보고한 초록 {len(acc_pool)}편 중 "
+                                       f"합병증·재수술·기능 같은 환자 결과까지 함께 본 초록은 {m['observed']}편"
+                                       f"({_pct(m['ratio'])}%)입니다. 다른 분야의 같은 비교에서는 {_pct(m['baseline'])}%로, "
+                                       f"{m['z']:.1f}표준편차 차이입니다. 이 분야의 기준 결과변수는 "
+                                       f"{', '.join(spec['primary'][:3])}이지만, 그 개선이 진료 결정이나 "
+                                       "환자 결과로 이어졌다는 근거는 아직 얇습니다."),
+                            pico=f"{cluster}를 적용한 환자에서, 기존 방식 대비 정확도 향상이 12개월 임상 결과 차이로 이어지는지 평가",
+                            design="전향 비교 코호트 (정확도와 임상 결과를 같은 환자에서 동시 측정)",
+                            primaryEndpoint="12개월 합병증·재수술률 및 기능 결과의 군간 차이",
+                            novelty=_clamp(4 + m["z"] / 3), feasibility=3,
+                            evidence=_pick_evidence(acc_pool), tags=[cluster, "임상적 유용성", "유용성 공백"],
+                            metrics=m))
+
+            # --- D7. 외부검증 공백 (population_external_validity) ----------------
+            m = _gap_metrics(pool, rest, lambda a: _has(a, "external_validation"), stamps, midpoint)
+            if _passes(m):
+                add(m["z"] * gw, "external", cluster, "external_validation" + unit, _idea(
+                    cluster, "external_validation", "population_external_validity", "external_validation", spec,
+                    title=f"{cluster}의 결과는 다른 기관·집단에서도 재현되는가?",
+                    rationale=(f"{cluster} {len(pool)}편 중 다기관·등록자료·외부 코호트 검증을 언급한 초록은 "
+                               f"{m['observed']}편({_pct(m['ratio'])}%)으로, 나머지 문헌의 {_pct(m['baseline'])}%보다 "
+                               f"{m['z']:.1f}표준편차 낮습니다. 단일 기관 결과가 다른 환자 구성·술기에서 "
+                               "그대로 나오는지는 따로 확인해야 합니다."),
+                    pico=f"{cluster}에서 확립된 {with_particle(_primary(spec, '결과', 2), '을', '를')} "
+                         "독립 기관·등록자료 코호트에 적용했을 때 같은 방향·크기의 결과가 나오는지 검증",
+                    design="외부 코호트 검증 연구 (다기관 또는 국가 등록자료)",
+                    primaryEndpoint=f"외부 코호트에서의 {_primary(spec, '1차 결과', 2)} 재현성 (효과크기 및 보정 성능)",
+                    novelty=_clamp(3 + m["z"] / 3), feasibility=3,
+                    evidence=_pick_evidence(pool), tags=[cluster, "외부검증", "외부검증 공백"],
+                    metrics=m))
+
+            # --- D8. 하위집단 공백 (population_external_validity) ----------------
+            for group in SUBGROUPS:
+                label = group["label"]
+                if label in cluster:
+                    continue
+                family = group.get("family")
+                if family and _family_share(pool, family) < 0.5:
+                    continue    # 이 주제는 해당 계열 문헌이 주류가 아니다 → 범주 오류
+                base = _baseline(rest, lambda a: label in subgroup_map[a.pmid])
+                if base < 0.04:            # 코퍼스 자체가 거의 안 다루면 공백이 아니라 관심 밖이다
+                    continue
+                m = _gap_metrics(pool, rest, lambda a, g=label: g in subgroup_map[a.pmid], stamps, midpoint)
+                if not _passes(m):
+                    continue
+                observed = [a for a in pool if label in subgroup_map[a.pmid]]
+                add(m["z"] * gw, "subgroup", cluster, label, _idea(
+                    cluster, f"subgroup_{label}{unit}", "population_external_validity", "subgroup", spec,
+                    title=f"{cluster} 연구에서 {with_particle(label, '은', '는')} 따로 검증됐는가?",
+                    rationale=(f"이 범위 전체에서 {with_particle(label, '을', '를')} 명시적으로 다룬 초록은 {_pct(m['baseline'])}%인데, "
+                               f"{cluster} {len(pool)}편 중에서는 {m['observed']}편({_pct(m['ratio'])}%)뿐입니다"
+                               f"(기준선보다 {m['z']:.1f}표준편차 낮음). "
+                               "결과가 갈릴 가능성이 큰 환자군인데 하위군 분석이 비어 있는 구간입니다."),
+                    pico=f"{label}에 해당하는 무릎 환자에서, {cluster}에서 확립된 개입이 전체 코호트와 "
+                         f"같은 방향의 {with_particle(_primary(spec, '결과', 2), '을', '를')} 보이는지 평가",
+                    design="기존 코호트의 사전 정의된 하위군 분석 (검정력 확인 후) 또는 해당 환자군 전향 등록",
+                    primaryEndpoint=f"전체 코호트 대비 {label} 하위군의 12개월 {_primary(spec, '1차 결과', 2)} 차이 (교호작용 검정)",
+                    novelty=_clamp(3 + m["z"] / 3), feasibility=4,
+                    evidence=_pick_evidence(observed or pool), tags=[cluster, label, "하위집단 공백"],
+                    metrics=m))
 
     # --- D9. 교차 공백 -----------------------------------------------------
     # 카테고리는 두 번째 축이 무엇이냐로 정한다. 교차 자체는 공백의 종류가 아니다.
