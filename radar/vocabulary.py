@@ -353,11 +353,17 @@ def variant_breakdown(sets: dict[str, set[str]], total: set[str]) -> dict:
         breakdown[f"{name}_matched"] = len(sets[name])
         breakdown[f"{name}_only"] = len(sets[name] - others)
     if len(names) > 1:
+        from . import config
         overlap = set.intersection(*sets.values())
         breakdown["overlapCount"] = len(overlap)
-        breakdown["overlapRate"] = round(len(overlap) / max(len(covered), 1), 3)
-        # 겹침이 있으면 두 하위집단은 독립이 아니다. 최종 선정에서 둘을 함께 뽑지 않는다.
-        breakdown["independentSubgroups"] = not overlap
+        # 분모를 둘 다 남긴다. 어느 쪽에도 안 걸린 논문이 많으면 두 값이 크게 벌어진다.
+        #   overlapAmongMatched  두 하위집단 합집합 대비 (Jaccard)
+        #   overlapAmongCluster  클러스터 전체 논문 대비
+        breakdown["overlapAmongMatched"] = round(len(overlap) / max(len(covered), 1), 3)
+        breakdown["overlapAmongCluster"] = round(len(overlap) / max(len(total), 1), 3)
+        # 1편이라도 겹치면 무조건 종속으로 보는 것은 과하다. 임계값으로 판단한다.
+        breakdown["independentSubgroups"] = (
+            breakdown["overlapAmongMatched"] <= config.SUBGROUP_OVERLAP_MAX)
     return breakdown
 
 

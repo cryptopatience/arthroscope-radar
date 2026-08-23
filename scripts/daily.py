@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import collections
+import gzip
 import hashlib
 import json
 import os
@@ -51,6 +52,10 @@ RUN_LOG_KEEP = 90
 # 이 실행을 그대로 재현하는 데 필요한 것 전부. 전문가 평가는 이 manifest가 고정된
 # 뒤에 시작해야 한다 — 사전이나 임계값이 바뀐 뒤의 결과와 섞이면 평가가 무의미해진다.
 MANIFEST = Path("data/run_manifest.json")
+# 이번 실행에 실제로 들어간 제목·초록 원본. corpusContentHash는 "바뀌었다"만 알려주고
+# 과거 내용을 복원하지는 못한다. 백테스트나 논문화를 하려면 그때의 입력이 그대로 있어야
+# 한다. 저장소에는 커밋하지 않고(용량) 로컬에 두었다가 Release 자산으로 올린다.
+CORPUS_DIR = Path("data/corpus")
 
 
 def git_commit() -> str:
@@ -61,11 +66,37 @@ def git_commit() -> str:
         return "unknown"
 
 
+def _canonical(payload) -> str:
+    """해시용 정규 직렬화. 키를 정렬하고 배열은 부르는 쪽에서 정렬해 넘긴다.
+
+    순서만 바뀌어도 해시가 달라지면 재현성 확인에 쓸 수 없다.
+    """
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
 def _sha256(payload) -> str:
-    """정렬된 JSON의 해시. PMID 목록만으로는 부족하다 — PubMed가 초록이나 메타데이터를
-    나중에 고치면 같은 PMID로도 다른 입력이 된다."""
-    blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return "sha256:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()
+    return "sha256:" + hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest()
+
+
+def save_corpus(analysis: dict) -> dict:
+    """이번 실행의 입력을 그대로 압축 보관한다. 커밋하지 않는다(.gitignore)."""
+    records = sorted(
+        ({"pmid": a["pmid"], "title": a["title"], "abstract": a["abstract"],
+          "journal": a["journal"], "journalKey": a["journalKey"], "date": a["date"]}
+         for a in analysis["articles"]),
+        key=lambda r: r["pmid"])
+    blob = _canonical(records).encode("utf-8")
+    CORPUS_DIR.mkdir(parents=True, exist_ok=True)
+    path = CORPUS_DIR / f"corpus-{analysis['dateTo']}.json.gz"
+    with gzip.open(path, "wb", compresslevel=9) as handle:
+        handle.write(blob)
+    packed = path.stat().st_size
+    log(f"코퍼스 원본 저장: {path} ({packed / 1048576:.2f}MB 압축 / {len(blob) / 1048576:.2f}MB 원본)")
+    log(f"  Release 자산으로 올리려면:  gh release upload <tag> {path}")
+    return {"path": str(path).replace("\\", "/"), "sha256": _sha256(records),
+            "bytes": packed, "rawBytes": len(blob), "records": len(records),
+            "committed": False,
+            "note": "저장소에 커밋하지 않습니다. 백테스트·논문화를 위해 Release 자산으로 보관하세요."}
 
 
 def write_manifest(analysis: dict, judgments: dict, prior: dict, selections: dict,
@@ -88,12 +119,11 @@ def write_manifest(analysis: dict, judgments: dict, prior: dict, selections: dic
         "corpusPmidsHash": _sha256(sorted(a["pmid"] for a in analysis["articles"])),
         # 초록·제목·저널·날짜까지 넣은 해시. PubMed가 사후 수정해도 차이가 드러난다.
         "corpusContentHash": _sha256(sorted(
-            [a["pmid"], a["title"], a["abstract"], a["journal"], a["date"]]
-            for a in analysis["articles"])),
+            ([a["pmid"], a["title"], a["abstract"], a["journal"], a["date"]]
+             for a in analysis["articles"]), key=lambda row: row[0])),
         "llmJudgmentHash": _sha256(judgments),
         "priorArtResultHash": _sha256(prior),
-        # 원문 PubMed 응답은 저장소에 두지 않는다. 필요하면 Release 자산으로 올린다.
-        "rawCorpusSnapshot": None,
+        "rawCorpusSnapshot": save_corpus(analysis),
         "thresholds": thresholds,
         "dictionaryVersion": KEYWORD_DICT_VERSION,
         "canonicalOutcomeVersion": CANONICAL_OUTCOME_VERSION,

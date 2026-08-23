@@ -221,6 +221,27 @@ streamlit run app.py
 python scripts/daily.py   # data/daily.json + data/run_log.json 생성
 ```
 
+### 재현성
+
+실행마다 `data/run_manifest.json`이 함께 만들어집니다 — commit, 캐시 버전, 수집일, 저널 목록, PubMed 질의(수집·선행연구 각각), 코퍼스 PMID 전체, 임계값 전부, 사전·기준표·프롬프트·모델 버전, 그리고 네 가지 해시입니다.
+
+| 해시 | 무엇이 바뀌면 달라지는가 |
+|---|---|
+| `corpusPmidsHash` | 수집된 논문 목록 |
+| `corpusContentHash` | 제목·초록·저널·날짜 (PubMed의 사후 수정을 잡아냅니다) |
+| `llmJudgmentHash` | 판정 결과 |
+| `priorArtResultHash` | 선행연구 결과 |
+
+해시는 키를 정렬하고 배열도 정렬한 정규 직렬화 위에서 계산하므로, 순서만 바뀌어서 달라지지 않습니다.
+
+`corpusContentHash`는 "바뀌었다"는 사실만 알려줄 뿐 과거 내용을 복원하지 못합니다. 그래서 그 실행에 실제로 들어간 제목·초록 원본을 `data/corpus/corpus-{날짜}.json.gz`로 함께 남깁니다. 용량 때문에 저장소에는 커밋하지 않으니(`.gitignore`), 백테스트나 논문화를 염두에 둔다면 Release 자산으로 올려 두세요.
+
+```bash
+gh release create corpus-2026-08-24 data/corpus/corpus-2026-08-24.json.gz   --title "Corpus snapshot 2026-08-24" --notes "run_manifest.json의 corpusContentHash와 대조"
+```
+
+**전문가 평가는 manifest가 고정된 뒤에 시작하세요.** 사전이나 임계값이 바뀐 뒤의 결과와 섞이면 평가가 무의미해집니다. 평가 시에는 모델의 판정과 점수를 가리고 아이디어만 보여주는 편이 anchoring bias를 줄입니다.
+
 `data/run_log.json`에는 실행마다 한 줄씩(수집 편수·공백 수·AI 갱신 여부·소요 시간, 실패했다면 그 사유) 쌓입니다. 앱 사이드바의 **운영 로그**가 이 파일을 그대로 읽어 마지막 수집 시각, 최근 7일 중 며칠이나 돌았는지, 실패가 있었는지를 보여줍니다. 스냅샷만으로는 "마지막 결과"밖에 알 수 없어 며칠째 멈춘 것을 눈치채기 어렵습니다.
 
 `.github/workflows/daily.yml`이 매일 18:00 KST에 같은 스크립트를 돌려 커밋합니다. 저장소 Secrets에 `NCBI_API_KEY`, `NCBI_TOOL_EMAIL`, `GEMINI_API_KEY`를, Variables에 `GEMINI_MODEL`을 넣으세요.

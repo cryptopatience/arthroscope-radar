@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 
-CONFIG_VERSION = "3"
+CONFIG_VERSION = "4"
 
 # ---------------------------------------------------------------------------
 # 공백 탐지
@@ -39,6 +39,9 @@ GAP_TEMPORAL_SHIFT = 0.05
 # 1위 하위유형이 2위의 몇 배여야 그쪽으로 확정할지. 못 넘으면 mixed로 둔다.
 # 경험값이므로 백테스트 대상이다.
 SUBTYPE_DOMINANCE_RATIO = 1.3
+# 두 하위집단이 근거를 얼마나 공유하면 독립이 아니라고 볼지(합집합 대비 겹침 비율).
+# 1편이라도 겹치면 무조건 종속으로 보는 것은 과하다. 형평성의 32.5%는 종속이 맞다.
+SUBGROUP_OVERLAP_MAX = 0.10
 
 # 트렌드
 MIN_TREND_COUNT = 20

@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 .streamlit/secrets.toml
 data/saved_ideas.json
+# 실행 입력 원본. 용량이 커서 커밋하지 않는다 — Release 자산으로 보관한다.
+data/corpus/
 .venv/
 
 # Google Drive / Windows 부산물
