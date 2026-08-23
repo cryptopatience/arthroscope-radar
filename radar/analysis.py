@@ -139,6 +139,16 @@ IDEA_MAX = 8
 IDEA_PER_KIND = 4       # 같은 종류(outcome·design·joint·intersection)를 몇 개까지 뽑을지
 IDEA_PER_LEAD = 2       # 같은 주제를 몇 개까지 뽑을지
 GAP_RATIO = 0.35
+# 공백 하나마다 "이 판정을 얼마나 믿을 수 있는가"의 재료를 함께 계산한다.
+# 표본 충분성은 편수와 효과크기(Cohen's h)를 같이 본다. 편수만 보면 큰 주제의
+# 미세한 격차가 "충분"으로 올라오고, 효과크기만 보면 20편짜리 주제의 우연이 올라온다.
+GAP_N_SOLID = 50
+GAP_N_LIMITED = 25
+GAP_H_SOLID = 0.5       # Cohen's h 관례: 0.2 작음 · 0.5 중간 · 0.8 큼
+GAP_H_LIMITED = 0.2
+# 시간적 근거: 같은 공백을 전반기·후반기로 나눠 다시 재고 격차가 움직였는지 본다.
+GAP_TEMPORAL_MIN_HALF = 8   # 한쪽 반기 표본이 이보다 적으면 방향을 말하지 않는다
+GAP_TEMPORAL_SHIFT = 0.05   # 격차가 5%p 이상 움직여야 좁혀졌다·벌어졌다고 부른다
 
 
 class AnalysisError(Exception):
@@ -185,6 +195,8 @@ class Idea:
     feasibility: int
     evidence: list[dict] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
+    # 이 공백을 얼마나 단단히 측정했는지. 화면의 "표본 충분성·시간적 근거"가 여기서 나온다.
+    metrics: dict = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -460,12 +472,88 @@ def _baseline(rest: list[Article], predicate) -> float:
     return (sum(1 for a in rest if predicate(a)) / len(rest)) if rest else 0.0
 
 
-def generate_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea]:
+def _cohens_h(observed_rate: float, baseline: float) -> float:
+    """두 비율의 효과크기. 부족분이 클수록 양수.
+
+    z는 표본이 커지면 격차가 작아도 커진다(1,000편이면 7%p 차이도 z>5). 실질적인
+    격차 크기는 표본에 좌우되지 않는 h로 따로 재야 "통계적으로만 유의한 공백"을
+    가려낼 수 있다.
+    """
+    def phi(p: float) -> float:
+        return 2 * math.asin(math.sqrt(max(0.0, min(1.0, p))))
+    return phi(baseline) - phi(observed_rate)
+
+
+def _sufficiency(n: int, h: float) -> str:
+    if n >= GAP_N_SOLID and abs(h) >= GAP_H_SOLID:
+        return "충분"
+    if n >= GAP_N_LIMITED and abs(h) >= GAP_H_LIMITED:
+        return "제한적"
+    return "부족"
+
+
+def _half_gap(pool: list[Article], rest: list[Article], predicate, stamps: dict, midpoint: float,
+              late: bool) -> dict | None:
+    """반기 하나에서 같은 공백을 다시 잰다. 기준선도 그 반기 것으로 다시 잡는다.
+
+    기준선을 전 기간으로 고정하면, 코퍼스 전체가 그 지표를 더 많이 다루기 시작했을 때
+    주제의 비중이 그대로인데도 공백이 줄어든 것처럼 보인다.
+    """
+    def in_half(a: Article) -> bool:
+        stamp = stamps.get(a.pmid, float("nan"))
+        return stamp >= midpoint if late else stamp < midpoint
+
+    pool_half = [a for a in pool if in_half(a)]
+    rest_half = [a for a in rest if in_half(a)]
+    if len(pool_half) < GAP_TEMPORAL_MIN_HALF or len(rest_half) < GAP_TEMPORAL_MIN_HALF:
+        return None
+    ratio = sum(1 for a in pool_half if predicate(a)) / len(pool_half)
+    base = sum(1 for a in rest_half if predicate(a)) / len(rest_half)
+    return {"n": len(pool_half), "ratio": round(ratio, 4), "baseline": round(base, 4),
+            "gap": round(base - ratio, 4)}
+
+
+def _gap_metrics(pool: list[Article], rest: list[Article], predicate, stamps: dict, midpoint: float) -> dict:
+    """공백 하나의 크기·확실성·시간 변화를 한 번에 잰다.
+
+    네 규칙(결과·설계·하위집단·교차)이 모두 "이 묶음이 나머지 코퍼스보다 이 속성을
+    덜 가졌는가"라는 같은 형태라서, 지표도 같은 틀로 계산해 화면에서 나란히 비교된다.
+    """
+    n = len(pool)
+    observed = sum(1 for a in pool if predicate(a))
+    ratio = observed / n if n else 0.0
+    baseline = _baseline(rest, predicate)
+    h = _cohens_h(ratio, baseline)
+    early = _half_gap(pool, rest, predicate, stamps, midpoint, False)
+    late = _half_gap(pool, rest, predicate, stamps, midpoint, True)
+    if early and late:
+        shift = late["gap"] - early["gap"]
+        direction = ("narrowing" if shift <= -GAP_TEMPORAL_SHIFT else
+                     "widening" if shift >= GAP_TEMPORAL_SHIFT else "persistent")
+    else:
+        shift, direction = None, "unknown"
+    return {
+        "n": n, "observed": observed, "ratio": round(ratio, 4), "baseline": round(baseline, 4),
+        "z": round(_deficit_z(observed, n, baseline), 2), "effectSize": round(h, 3),
+        "sufficiency": _sufficiency(n, h),
+        "temporal": {"direction": direction, "shift": round(shift, 4) if shift is not None else None,
+                     "early": early, "late": late},
+    }
+
+
+def generate_ideas(articles: list[Article], trends: list[Trend],
+                   date_from: str = "", date_to: str = "") -> list[Idea]:
     """실제 코퍼스에 있는 공백에서 아이디어를 도출한다. 공백이 없으면 아무것도 내지 않는다."""
     articles = [a for a in articles if a.design not in NON_CLINICAL_DESIGNS]
     total = len(articles)
     if not total:
         return []
+    # 시간적 근거용 반기 경계. build_trends와 같은 방식으로 잘라 트렌드 표와 어긋나지 않게 한다.
+    stamps = {a.pmid: _ts(a.date) for a in articles}
+    if date_from and date_to:
+        midpoint = _ts(date_from) + ((_ts(date_to) + 86399) - _ts(date_from)) / 2
+    else:
+        midpoint = float("nan")   # 기간을 모르면 반기 비교를 포기한다(방향 unknown)
     ranked = [t for t in trends if t.signal != "sparse"]
     pools = {t.label: [a for a in articles if t.label in a.topics] for t in ranked}
     subgroup_map = {a.pmid: classify_subgroups(f"{a.title} {a.abstract}") for a in articles}
@@ -492,6 +580,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea]:
         prom_base = _baseline(rest, lambda a: "PROM·기대치" in a.topics)
         prom_z = _deficit_z(len(with_prom), len(pool), prom_base)
         if trend.label != "PROM·기대치" and prom_z >= GAP_Z and prom_ratio <= prom_base * GAP_MIN_RATIO:
+            prom_metrics = _gap_metrics(pool, rest, lambda a: "PROM·기대치" in a.topics, stamps, midpoint)
             candidates.append((prom_z * gw, "outcome", trend.label, None, Idea(
                 id=f"outcome-{trend.label}",
                 title=f"{trend.label} 연구의 결과가 환자 체감 회복으로 이어지는가?",
@@ -504,6 +593,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea]:
                 primaryEndpoint="12개월 질환별 PROM의 MCID 달성률",
                 novelty=_clamp(2 + prom_z / 3), feasibility=5,
                 evidence=_pick_evidence(pool), tags=[trend.label, "PROM·MCID", "결과지표 공백"],
+                metrics=prom_metrics,
             )))
 
         # 근거수준 공백: 나머지 코퍼스보다 전향 연구 비중이 유의하게 낮다.
@@ -512,6 +602,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea]:
         pro_base = _baseline(rest, lambda a: a.design in PROSPECTIVE_DESIGNS)
         pro_z = _deficit_z(len(prospective), len(pool), pro_base)
         if pro_z >= GAP_Z and p_ratio <= pro_base * GAP_MIN_RATIO:
+            pro_metrics = _gap_metrics(pool, rest, lambda a: a.design in PROSPECTIVE_DESIGNS, stamps, midpoint)
             # 설계 공백은 해결책이 명확해(전향 등록) 결과 공백보다 조금 우대한다.
             candidates.append((pro_z * 1.2 * gw, "design", trend.label, None, Idea(
                 id=f"design-{trend.label}",
@@ -525,6 +616,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea]:
                 primaryEndpoint="사전 정의된 12개월 1차 결과변수의 재현 여부",
                 novelty=_clamp(2 + pro_z / 3), feasibility=3,
                 evidence=_pick_evidence(pool), tags=[trend.label, "전향 검증", "근거수준 공백"],
+                metrics=pro_metrics,
             )))
 
         # 하위집단 공백: 코퍼스가 충분히 다루는 환자군인데 이 주제는 따로 검증하지 않는다.
@@ -543,6 +635,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea]:
             ratio = len(observed) / len(pool)
             if z < GAP_Z or ratio > base * GAP_MIN_RATIO:
                 continue
+            sub_metrics = _gap_metrics(pool, rest, lambda a, g=label: g in subgroup_map[a.pmid], stamps, midpoint)
             candidates.append((z * gw, "subgroup", trend.label, label, Idea(
                 id=f"subgroup-{trend.label}-{label}",
                 title=f"{trend.label} 연구에서 {with_particle(label, '은', '는')} 따로 검증됐는가?",
@@ -555,6 +648,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea]:
                 primaryEndpoint="전체 코호트 대비 하위군의 12개월 1차 결과변수 차이 (교호작용 검정)",
                 novelty=_clamp(3 + z / 3), feasibility=4,
                 evidence=_pick_evidence(observed or pool), tags=[trend.label, label, "하위집단 공백"],
+                metrics=sub_metrics,
             )))
 
     # 교차 공백: 규모 대비 함께 다뤄지지 않는 두 주제.
@@ -574,6 +668,11 @@ def generate_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea]:
             if expected < 3 or len(observed) >= expected * GAP_RATIO:
                 continue
             lead = first.label if first.signal == "rising" else second.label
+            # 교차 공백도 같은 틀로 잰다: 첫 주제 묶음이 "둘째 주제를 함께 다루는 비율"을
+            # 첫 주제 밖 문헌의 같은 비율과 비교한다.
+            cross_rest = [a for a in articles if first.label not in a.topics]
+            cross_metrics = _gap_metrics(pool_first, cross_rest,
+                                         lambda a, t=second.label: t in a.topics, stamps, midpoint)
             candidates.append(((expected - len(observed)) * 1.4, "intersection", lead, second.label, Idea(
                 id=f"intersection-{first.label}-{second.label}",
                 title=f"{with_particle(first.label, '과', '와')} {with_particle(second.label, '을', '를')} 함께 보면 무엇이 달라지는가?",
@@ -586,6 +685,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea]:
                 novelty=_clamp(4 + (expected - len(observed)) / max(expected, 1)), feasibility=3,
                 evidence=_pick_evidence(pool_first, 1) + _pick_evidence(pool_second, 1),
                 tags=[first.label, second.label, "교차 공백"],
+                metrics=cross_metrics,
             )))
 
     # 분산: 한쪽 종류나 한 주제가 목록을 독식하지 않도록 상한을 둔다.
@@ -608,8 +708,9 @@ def generate_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea]:
     return chosen
 
 
-def scoped_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea] | None:
-    ideas = generate_ideas(articles, trends)
+def scoped_ideas(articles: list[Article], trends: list[Trend],
+                 date_from: str = "", date_to: str = "") -> list[Idea] | None:
+    ideas = generate_ideas(articles, trends, date_from, date_to)
     return ideas if len(ideas) >= MIN_IDEAS_FOR_SCOPE else None
 
 
@@ -750,7 +851,7 @@ def run_analysis(journals: list[str], date_from: str, date_to: str, focus: str =
     trends = keep_on_target_topics(build_trends(articles, date_from, date_to))
     trends_by_journal = {k: keep_on_target_topics(build_trends([a for a in articles if a.journalKey == k], date_from, date_to))
                          for k in journals}
-    ideas = generate_ideas(articles, trends)
+    ideas = generate_ideas(articles, trends, date_from, date_to)
 
     selected_families = [f for f in FAMILY_ORDER if any(JOURNALS[k]["family"] == f for k in journals)]
 
@@ -764,12 +865,12 @@ def run_analysis(journals: list[str], date_from: str, date_to: str, focus: str =
     trends_by_family = {f: keep_on_target_topics(build_trends(family_articles(f), date_from, date_to)) for f in split_families}
     ideas_by_family = {}
     for f in split_families:
-        scoped = scoped_ideas(family_articles(f), trends_by_family.get(f, []))
+        scoped = scoped_ideas(family_articles(f), trends_by_family.get(f, []), date_from, date_to)
         if scoped:
             ideas_by_family[f] = scoped
     ideas_by_journal = {}
     for k in journals:
-        scoped = scoped_ideas([a for a in articles if a.journalKey == k], trends_by_journal.get(k, []))
+        scoped = scoped_ideas([a for a in articles if a.journalKey == k], trends_by_journal.get(k, []), date_from, date_to)
         if scoped:
             ideas_by_journal[k] = scoped
 

@@ -15,9 +15,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+# Windows 콘솔의 기본 인코딩(cp949)으로는 로그의 한글·엔대시를 못 찍는다.
+# 출력을 파일이나 파이프로 넘길 때 UnicodeEncodeError로 작업 전체가 죽는다.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 from radar.analysis import JOURNAL_ORDER, JOURNALS, run_analysis  # noqa: E402
-from radar.gemini import (GEMINI_DEFAULT_MODEL, ENHANCE_MIN, enhance_idea, family_trend_report,  # noqa: E402
-                          judge_gap, JUDGE_PROMPT_VERSION, pmids_for_idea, titles_for_idea)
+from radar.gemini import (GEMINI_DEFAULT_MODEL, ENHANCE_MIN, enhance_idea,  # noqa: E402
+                          family_trend_report, pmids_for_idea)
+from radar.judge import (JUDGE_PROMPT_VERSION, JUDGE_RUNS, build_panel, evidence_summary,  # noqa: E402
+                         judge_panel, titles_for_idea)
 from radar.ncbi import NcbiCredentials  # noqa: E402
 
 FAMILY_LABEL = {
@@ -32,6 +42,10 @@ AI_IDEA_LIMIT = 4       # 규칙 기반 아이디어는 8개를 다 보여주되
 TREND_ABSTRACTS = 30
 GEMINI_WEEKDAY = 4      # 0=월 … 4=금. 초록 수집은 매일, Gemini 분석은 이 요일에만.
 SNAPSHOT = Path("data/daily.json")
+# 실행 기록. 스냅샷은 "마지막 결과"만 담아서, 어제 수집이 돌긴 했는지·며칠째 조용한지를
+# 알 수가 없다. 그래서 실행마다 한 줄씩 남기고 앱 사이드바가 그대로 읽는다.
+RUN_LOG = Path("data/run_log.json")
+RUN_LOG_KEEP = 90
 
 
 def env(name: str) -> str:
@@ -48,6 +62,17 @@ def load_previous() -> dict:
         return json.loads(SNAPSHOT.read_text("utf-8"))
     except Exception:
         return {}
+
+
+def append_run(entry: dict):
+    """실행 한 건을 기록한다. 실패한 실행도 남겨야 "며칠째 안 돈다"가 보인다."""
+    try:
+        previous = json.loads(RUN_LOG.read_text("utf-8"))
+        previous = previous if isinstance(previous, list) else []
+    except Exception:
+        previous = []
+    RUN_LOG.parent.mkdir(parents=True, exist_ok=True)
+    RUN_LOG.write_text(json.dumps(([entry] + previous)[:RUN_LOG_KEEP], ensure_ascii=False, indent=1) + "\n", "utf-8")
 
 
 def cache_key(kind: str, ident: str, scope: str, pmids: list[str], model: str) -> str:
@@ -75,28 +100,35 @@ def gemini_day(today: date, previous: dict) -> tuple[bool, str]:
     return False, f"{'월화수목금토일'[today.weekday()]}요일 — 지난 결과 재사용"
 
 
-def judge_all(ideas, pool, scope, period, key, model, prev: dict) -> dict:
+def judge_all(ideas, pool, scope, period, panel, prev: dict) -> dict:
     """공백이 실제 기회인지 분야 특성인지 먼저 거른다.
 
     3년치 백테스트에서 공백 수준의 연도간 상관이 0.9를 넘었다. 즉 대부분의 공백은
     채워질 빈칸이 아니라 그 분야의 고정된 특성이다. 통계로는 이 둘을 구분할 수 없어
     임상 지식이 필요하고, 그래서 고도화 앞에 판정 단계를 둔다.
+
+    판정 한 건에 주 모델 JUDGE_RUNS회 + 나머지 판정자 1회씩을 쓴다. 값이 비싸 보이지만
+    제목만 보내는 프롬프트이고 주 1회만 도는 데다, 이 반복이 화면의 "판정 안정성"과
+    "모델 간 합의"를 만드는 유일한 재료다.
     """
     out = {}
+    models = "+".join(j.name for j in panel)
     for idea in ideas:
         # 판정은 특정 초록이 아니라 주제 자체에 대한 것이므로 PMID 집합으로 캐싱하지 않는다.
         # novelty는 z에서 파생되므로, 공백 크기가 실질적으로 변하면 키가 바뀐다.
         ck = cache_key("judge", idea["id"], scope,
-                       [str(idea.get("novelty", "")), f"v{JUDGE_PROMPT_VERSION}"], model)
+                       [str(idea.get("novelty", "")), f"v{JUDGE_PROMPT_VERSION}", f"runs{JUDGE_RUNS}"], models)
         cached = reuse(prev.get(idea["id"]), ck)
         if cached:
             out[idea["id"]] = cached
             continue
         try:
-            verdict = judge_gap(idea, titles_for_idea(idea, pool), scope, period, key, model)
+            verdict = judge_panel(idea, titles_for_idea(idea, pool), scope, period, panel)
             verdict["cacheKey"] = ck
             out[idea["id"]] = verdict
-            log(f"  판정 {verdict['verdict']}(확신 {verdict['confidence']}) — {idea['title'][:30]}…")
+            evidence = evidence_summary(verdict, idea.get("metrics")) or {}
+            log(f"  판정 {verdict['verdict']} · 안정성 {verdict['stability']['agree']}/{verdict['stability']['runs']}"
+                f" · 합의 {verdict['consensus']} · 근거 {evidence.get('level', '-')} — {idea['title'][:28]}…")
         except Exception as error:
             out[idea["id"]] = {"error": str(error) or "판정 실패"}
             log(f"  판정 실패 — {scope}: {error}")
@@ -111,13 +143,14 @@ def passing(ideas, judgments) -> list:
 
     판정이 전부 structural로 나올 수 있고(실제로 그런 경우가 흔하다) 그때 고도화가
     0건이 되면 앱이 비어버린다. 대신 기회로 판정된 것을 앞세우고, 같은 판정 안에서는
-    확신이 낮은 것(= 오판 가능성이 큰 것)을 먼저, 그 다음 원래 신호 순서를 따른다.
+    근거가 단단한 것을 먼저 고도화한다. 화면이 "추천 연구기회"와 "구조적 공백"으로
+    갈라진 뒤로는, 추천 쪽 카드가 AI 제안까지 갖춘 상태인 편이 쓸모 있다.
     """
     def rank(pair):
         index, idea = pair
-        verdict = judgments.get(idea["id"]) or {}
-        return (VERDICT_ORDER.get(verdict.get("verdict"), 3),
-                verdict.get("confidence", 3), index)
+        judgment = judgments.get(idea["id"]) or {}
+        evidence = evidence_summary(judgment, idea.get("metrics")) or {}
+        return (VERDICT_ORDER.get(judgment.get("verdict"), 3), -evidence.get("score", 0), index)
     return [idea for _, idea in sorted(enumerate(ideas), key=rank)][:AI_IDEA_LIMIT]
 
 
@@ -145,9 +178,10 @@ def suggest_all(ideas, pool, trends, period, scope, creds, key, model, prev: dic
     return out
 
 
-def main():
+def main(started: datetime):
     creds = NcbiCredentials(env("NCBI_API_KEY"), env("NCBI_TOOL_EMAIL"))
     key, model = env("GEMINI_API_KEY"), env("GEMINI_MODEL") or GEMINI_DEFAULT_MODEL
+    panel = build_panel(key, model, env("GEMINI_JUDGE_MODEL_B"), env("OPENAI_API_KEY"), env("OPENAI_JUDGE_MODEL"))
     previous = load_previous()
     if not creds.api_key:
         log("경고: NCBI_API_KEY가 없습니다. 수집이 순차로 돌아 느려집니다.")
@@ -201,9 +235,9 @@ def main():
                 trend_reports[fam] = {"error": str(error) or "동향 분석 실패"}
                 log(f"동향 분석 실패 — {fam}: {error}")
 
-        log("공백 판정 — 무릎 전체")
+        log(f"공백 판정 — 무릎 전체 (판정단 {', '.join(j.name for j in panel)} · 주 모델 {JUDGE_RUNS}회 반복)")
         judgments.update(judge_all(analysis["ideas"], analysis["articles"], "무릎 전체", period,
-                                   key, model, prev_judgments))
+                                   panel, prev_judgments))
         top = passing(analysis["ideas"], judgments)
         counts = collections.Counter((judgments.get(i["id"]) or {}).get("verdict", "실패")
                                      for i in analysis["ideas"])
@@ -216,7 +250,7 @@ def main():
                 continue
             pool = family_pool(fam)
             log(f"공백 판정 — {fam}")
-            judgments.update(judge_all(fam_ideas, pool, label, period, key, model, prev_judgments))
+            judgments.update(judge_all(fam_ideas, pool, label, period, panel, prev_judgments))
             suggestions.update(suggest_all(passing(fam_ideas, judgments), pool,
                                            analysis["trendsByFamily"].get(fam, []),
                                            period, label, creds, key, model, prev_suggestions))
@@ -231,17 +265,36 @@ def main():
                 "aiRefreshedAt": ai_refreshed_at, "aiRanToday": run_ai, "aiSkipReason": None if run_ai else why,
                 "familyLabels": FAMILY_LABEL, "trendReports": trend_reports, "suggestions": suggestions,
                 "judgments": judgments, "analysis": analysis}
-    out = Path("data/daily.json")
+    out = SNAPSHOT
     out.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(snapshot, ensure_ascii=False)
     out.write_text(text + "\n", "utf-8")
     log(f"저장 완료: {out} ({len(text.encode()) / 1048576:.2f}MB)")
     log(f"공백 판정 {len(judgments)}건, AI 제안 {len(suggestions)}건, 동향 분석 {len(trend_reports)}건 (오늘 Gemini 실행: {'예' if run_ai else '아니오'})")
 
+    failed = sum(1 for v in list(judgments.values()) + list(suggestions.values()) + list(trend_reports.values())
+                 if isinstance(v, dict) and v.get("error"))
+    append_run({
+        "at": now, "date": date_to, "ok": True, "seconds": round((datetime.now(timezone.utc) - started).total_seconds()),
+        "collected": analysis["collected"], "analyzed": analysis["analyzed"],
+        "withAbstract": analysis["withAbstract"], "totalAvailable": analysis["totalAvailable"],
+        "capped": analysis["capped"], "journals": len(analysis["journals"]), "ideas": len(analysis["ideas"]),
+        "sizeMB": round(len(text.encode()) / 1048576, 2),
+        "ai": {"ran": run_ai, "reason": why, "model": model if key else None,
+               "judged": len(judgments), "suggested": len(suggestions), "trends": len(trend_reports),
+               "failed": failed},
+        "error": None,
+    })
+
 
 if __name__ == "__main__":
+    start = datetime.now(timezone.utc)
     try:
-        main()
+        main(start)
     except Exception as error:
+        # 실패도 기록한다. 로그가 비어 있는 날과 "돌았지만 실패한 날"은 다른 문제다.
+        append_run({"at": datetime.now(timezone.utc).isoformat(), "date": date.today().isoformat(),
+                    "ok": False, "seconds": round((datetime.now(timezone.utc) - start).total_seconds()),
+                    "error": str(error) or error.__class__.__name__})
         print(f"[daily] 실패: {error}", file=sys.stderr)
         sys.exit(1)

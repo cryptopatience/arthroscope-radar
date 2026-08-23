@@ -37,15 +37,21 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           GEMINI_FORCE: ${{ inputs.force_gemini && '1' || '' }}
+          # 판정 교차 검증용. 둘 다 없어도 돌아간다(두 번째 Gemini 모델만으로 합의를 잰다).
+          GEMINI_JUDGE_MODEL_B: ${{ vars.GEMINI_JUDGE_MODEL_B }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_JUDGE_MODEL: ${{ vars.OPENAI_JUDGE_MODEL }}
         run: python scripts/daily.py
       - name: Commit snapshot
+        # 실행 기록은 스크립트가 실패해도 남기므로, 실패한 날도 커밋해 앱 사이드바에 보이게 한다.
+        if: always()
         run: |
           set -euo pipefail
-          if git diff --quiet -- data/daily.json && [ -n "$(git ls-files data/daily.json)" ]; then
+          git add -A data/daily.json data/run_log.json
+          if git diff --cached --quiet; then
             echo "변경 없음 — 커밋을 건너뜁니다."; exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/daily.json
           git commit -m "chore: 일일 무릎 연구 레이더 갱신 ($(date -u +%Y-%m-%d))"
           git push

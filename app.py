@@ -16,12 +16,16 @@ import streamlit as st
 
 from radar.analysis import FAMILIES, FAMILY_ORDER, JOURNAL_ORDER, JOURNALS, AnalysisError, run_analysis
 from radar.gemini import ENHANCE_MIN, GEMINI_DEFAULT_MODEL, enhance_idea, pmids_for_idea
+from radar.judge import VERDICT_LABEL, evidence_summary
 from radar.ncbi import NcbiCredentials
 
 TREND_ROWS = 9          # 편수 순 표에서 먼저 보여주는 행 수. 그 아래 상승 신호는 따로 덧붙인다.
 ARTICLE_PAGE = 8
 SNAPSHOT_PATH = Path("data/daily.json")
+RUN_LOG_PATH = Path("data/run_log.json")     # 일일 작업이 실행마다 한 줄씩 남기는 기록
 SAVED_PATH = Path("data/saved_ideas.json")   # localStorage 대신 로컬 파일에 저장
+RUN_LOG_ROWS = 14                            # 사이드바 표에 보여줄 최근 실행 수
+STALE_HOURS = 36                             # 이 시간을 넘겨 조용하면 경고한다 (하루 1회 실행 + 여유)
 
 st.set_page_config(page_title="ArthroScope Research Radar", page_icon="🦵", layout="wide")
 
@@ -48,10 +52,19 @@ st.markdown("""
 .ai { border-left:4px solid var(--mint); background:#f2f9f5; padding:14px 18px; margin:8px 0 18px; }
 .ai .lbl { color:#176b48; font-size:10px; font-weight:800; letter-spacing:.15em; }
 .ai h3 { font-family:Georgia, serif; margin:6px 0; font-size:20px; }
-.verdict { border-left:3px solid #b9b0a0; background:#f6f3ec; padding:9px 13px; margin:6px 0 10px; font-size:12.5px; color:#4a544f; }
+.verdict { border-left:3px solid #b9b0a0; background:#f6f3ec; padding:10px 14px; margin:6px 0 10px; font-size:12.5px; color:#4a544f; }
 .verdict b { color:var(--ink); }
 .verdict.op { border-left-color:#2f9e6e; background:#f1f9f5; }
-.verdict .std { display:block; margin-top:5px; color:#61716c; font-size:11.5px; }
+.verdict .std { display:block; margin-top:6px; color:#61716c; font-size:11.5px; }
+.verdict .hd { display:block; font-size:10px; font-weight:800; letter-spacing:.14em; color:#8a7f6d; margin-bottom:5px; }
+.verdict.op .hd { color:#2f9e6e; }
+.verdict dl { display:grid; grid-template-columns:max-content 1fr; gap:3px 14px; margin:9px 0 0; padding-top:8px; border-top:1px solid rgba(0,0,0,.08); font-size:11.5px; }
+.verdict dt { color:var(--muted); white-space:nowrap; }
+.verdict dd { margin:0; color:var(--ink); }
+.lv { display:inline-block; padding:1px 8px; border-radius:10px; font-weight:700; font-size:11px; }
+.lv.high { background:#d7f7e7; color:#176b48; } .lv.mid { background:#eee9df; color:#4f5a56; }
+.lv.low { background:#ffe2dc; color:#a4261d; }
+.muted-card { opacity:.92; }
 .caveat { border-left:4px solid var(--coral); background:#fff3f0; padding:12px 16px; font-size:13px; margin:16px 0; }
 .article { border-top:1px solid var(--line); padding:12px 0; }
 .article .meta { color:var(--muted); font-size:11px; margin-bottom:4px; }
@@ -130,6 +143,25 @@ def persist_saved():
         pass  # 저장은 편의 기능. 파일 시스템이 거부하면 메모리에만 둔다.
 
 
+def github_json(path: str):
+    """비공개 저장소에서 파일 하나를 읽는다. 설정이 없으면 조용히 포기한다."""
+    repo, token = secret("GITHUB_REPO"), secret("GITHUB_TOKEN")
+    branch = secret("GITHUB_BRANCH") or "main"
+    if not repo or not token:
+        return None
+    try:
+        response = requests.get(
+            f"https://api.github.com/repos/{repo}/contents/{path}",
+            params={"ref": branch},
+            headers={"authorization": f"Bearer {token}", "accept": "application/vnd.github.raw+json",
+                     "user-agent": "arthroscope-research-radar", "x-github-api-version": "2022-11-28"},
+            timeout=30,
+        )
+        return response.json() if response.ok else None
+    except Exception:
+        return None
+
+
 def load_snapshot() -> dict | None:
     """일일 스냅샷: 로컬 파일 → GitHub 비공개 저장소 순으로 시도."""
     if SNAPSHOT_PATH.exists():
@@ -139,25 +171,26 @@ def load_snapshot() -> dict | None:
                 return payload
         except Exception:
             pass
-    repo, token = secret("GITHUB_REPO"), secret("GITHUB_TOKEN")
-    branch = secret("GITHUB_BRANCH") or "main"
-    if not repo or not token:
-        return None
-    try:
-        response = requests.get(
-            f"https://api.github.com/repos/{repo}/contents/data/daily.json",
-            params={"ref": branch},
-            headers={"authorization": f"Bearer {token}", "accept": "application/vnd.github.raw+json",
-                     "user-agent": "arthroscope-research-radar", "x-github-api-version": "2022-11-28"},
-            timeout=30,
-        )
-        if response.ok:
-            payload = response.json()
-            if payload.get("analysis", {}).get("articles"):
-                return payload
-    except Exception:
-        pass
-    return None
+    payload = github_json("data/daily.json")
+    return payload if isinstance(payload, dict) and payload.get("analysis", {}).get("articles") else None
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_run_log() -> list[dict]:
+    """실행 기록. 스냅샷과 같은 자리(로컬 → GitHub)에서 읽는다.
+
+    스냅샷만으로는 "마지막에 언제 돌았나"까지만 알 수 있다. 매일 돌고 있는지, 어느 날
+    건너뛰었는지, 돌았는데 실패했는지는 이 기록이 있어야 보인다.
+    """
+    if RUN_LOG_PATH.exists():
+        try:
+            rows = json.loads(RUN_LOG_PATH.read_text("utf-8"))
+            if isinstance(rows, list):
+                return rows
+        except Exception:
+            pass
+    rows = github_json("data/run_log.json")
+    return rows if isinstance(rows, list) else []
 
 
 def run(journals: list[str], date_from: str, date_to: str, focus: str):
@@ -246,16 +279,50 @@ def suggestion_for(idea_id: str) -> dict | None:
     return (snap or {}).get("suggestions", {}).get(idea_id)
 
 
-VERDICT_LABEL = {
-    "opportunity": ("연구 기회로 판정", "op"),
-    "structural": ("이 분야의 구조적 특성", ""),
-    "answered": ("이미 다뤄지고 있을 가능성", ""),
-}
-
-
 def judgment_for(idea_id: str) -> dict | None:
     """공백이 실제 기회인지 분야 특성인지에 대한 AI 판정. 스냅샷에만 있다."""
-    return ((st.session_state.snapshot or {}).get("judgments", {}) or {}).get(idea_id)
+    judgment = ((st.session_state.snapshot or {}).get("judgments", {}) or {}).get(idea_id)
+    return judgment if isinstance(judgment, dict) and judgment.get("verdict") in VERDICT_LABEL else None
+
+
+# "미측정"은 아직 재지 않았다는 뜻이라 중립색으로 둔다(낮음과 같은 자리에 두면 안 된다).
+LEVEL_CLASS = {"높음": "high", "중간": "mid", "낮음": "low", "미측정": "mid"}
+
+
+def verdict_html(idea: dict) -> str:
+    """판정과 그 판정의 근거 수준. 모델이 스스로 매긴 확신도 대신 밖에서 잰 네 가지를 쓴다."""
+    judgment = judgment_for(idea["id"])
+    if not judgment:
+        return ""
+    verdict = judgment["verdict"]
+    opportunity = verdict == "opportunity"
+    head = "판정 근거" if opportunity else "추천하지 않는 이유"
+    block = (f'<div class="verdict {"op" if opportunity else ""}"><span class="hd">{head}</span>'
+             f'<b>{VERDICT_LABEL[verdict]}</b><br>{judgment.get("reason", "")}')
+    if judgment.get("fieldStandard"):
+        block += f'<span class="std">이 분야가 실제로 쓰는 1차 결과: {judgment["fieldStandard"]}</span>'
+    evidence = evidence_summary(judgment, idea.get("metrics"))
+    if evidence:
+        rows = [("판정 안정성", evidence["stability"]), ("모델 간 합의", evidence["consensus"]),
+                ("시간적 근거", evidence["temporal"]), ("표본 충분성", evidence["sample"])]
+        block += "<dl>" + "".join(f"<dt>{k}</dt><dd>{v}</dd>" for k, v in rows)
+        block += (f'<dt>종합 근거 수준</dt><dd><span class="lv {LEVEL_CLASS.get(evidence["level"], "mid")}">'
+                  f'{evidence["level"]}</span></dd></dl>')
+    return block + "</div>"
+
+
+def group_ideas(ideas: list[dict]) -> tuple[list[dict], list[dict], list[dict]]:
+    """추천 연구기회 · 구조적 공백 · 미판정. 판정된 것을 지우지 않고 자리를 나눠 준다."""
+    opportunity, structural, pending = [], [], []
+    for idea in ideas:
+        judgment = judgment_for(idea["id"])
+        if not judgment:
+            pending.append(idea)
+        elif judgment["verdict"] == "opportunity":
+            opportunity.append(idea)
+        else:
+            structural.append(idea)
+    return opportunity, structural, pending
 
 
 def is_saved(idea_id: str) -> bool:
@@ -293,13 +360,111 @@ def report_markdown(analysis: dict, trends: list[dict], scope_label: str, scope_
              f"- 검색 초점: {analysis['query'] or '전체'}", "", "## 주요 트렌드"]
     for t in trends[:8]:
         lines.append(f"- {t['label']}: {t['count']}편, 최근 반기 {t['recent']}편 vs 이전 반기 {t['previous']}편 ({'+' if t['delta'] > 0 else ''}{t['delta']}%)")
-    lines += ["", "## 연구 아이디어"]
-    for n, idea in enumerate(ideas, 1):
-        lines += [f"### {n}. {idea['title']}", "", idea["rationale"], "", f"- PICO: {idea['pico']}",
-                  f"- 권장 설계: {idea['design']}", f"- 1차 결과: {idea['primaryEndpoint']}",
-                  f"- 근거 PMID: {', '.join(e['pmid'] for e in idea['evidence'])}", ""]
+    def block(n: int, idea: dict) -> list[str]:
+        rows = [f"### {n}. {idea['title']}", "", idea["rationale"], ""]
+        judgment = judgment_for(idea["id"])
+        if judgment:
+            rows.append(f"- 판정: {VERDICT_LABEL[judgment['verdict']]}")
+            rows.append(("- 판정 근거: " if judgment["verdict"] == "opportunity" else "- 추천하지 않는 이유: ")
+                        + judgment.get("reason", ""))
+            if judgment.get("fieldStandard"):
+                rows.append(f"- 이 분야가 실제로 쓰는 1차 결과: {judgment['fieldStandard']}")
+            evidence = evidence_summary(judgment, idea.get("metrics"))
+            if evidence:
+                rows += [f"- 판정 안정성: {evidence['stability']}", f"- 모델 간 합의: {evidence['consensus']}",
+                         f"- 시간적 근거: {evidence['temporal']}", f"- 표본 충분성: {evidence['sample']}",
+                         f"- 종합 근거 수준: {evidence['level']}"]
+        rows += [f"- PICO: {idea['pico']}", f"- 권장 설계: {idea['design']}",
+                 f"- 1차 결과: {idea['primaryEndpoint']}",
+                 f"- 근거 PMID: {', '.join(e['pmid'] for e in idea['evidence'])}", ""]
+        return rows
+
+    opportunities, structural, pending = group_ideas(ideas)
+    if opportunities or pending:
+        lines += ["", "## 추천 연구기회" if opportunities else "## 연구 아이디어 후보 (판정 전)", ""]
+        for n, idea in enumerate(opportunities + pending, 1):
+            lines += block(n, idea)
+    if structural:
+        lines += ["## 구조적 공백 (추천하지 않음)", "",
+                  "통계적으로는 비어 있지만 그 분야의 정상적 특성이거나 이미 다뤄지는 구간입니다. "
+                  "같은 주제로 연구를 설계한다면 아래 '이 분야가 실제로 쓰는 1차 결과'를 결과변수로 잡으세요.", ""]
+        for n, idea in enumerate(structural, 1):
+            lines += block(n, idea)
     lines.append("> 주의: 아이디어는 선택된 저널과 기간에서 관찰된 신호를 기반으로 한 후보입니다. 최종 독창성 판단 전 전체 PubMed, 임상시험 등록자료 및 선행 프로토콜 검색이 필요합니다.")
     return "\n".join(lines)
+
+
+def day_label(value: str) -> str:
+    """운영 로그용 월.일. compact_date는 논문 날짜용이라 월까지만 찍는다."""
+    parts = (value or "").split("-")
+    return f"{parts[1]}.{parts[2]}" if len(parts) == 3 else (value or "—")
+
+
+def hours_since(iso: str) -> float | None:
+    try:
+        delta = datetime.now().astimezone() - datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone()
+        return delta.total_seconds() / 3600
+    except Exception:
+        return None
+
+
+def ago(hours: float) -> str:
+    if hours < 1:
+        return "방금"
+    if hours < 48:
+        return f"{round(hours)}시간 전"
+    return f"{round(hours / 24)}일 전"
+
+
+def render_run_log():
+    """사이드바 운영 로그. 수집이 매일 돌고 있는지를 한눈에 본다."""
+    st.markdown("### 운영 로그")
+    rows = load_run_log()
+    if not rows:
+        st.caption("아직 실행 기록이 없습니다. `python scripts/daily.py`가 한 번 돌면 여기에 쌓입니다.")
+        return
+
+    last = rows[0]
+    hours = hours_since(last.get("at", ""))
+    if not last.get("ok"):
+        st.error(f"마지막 실행 실패 ({day_label(last.get('date', ''))}) — {last.get('error', '원인 미상')}")
+    elif hours is not None and hours > STALE_HOURS:
+        st.warning(f"마지막 수집이 {ago(hours)}입니다. 일일 작업이 멈췄을 수 있습니다.")
+    else:
+        st.success(f"마지막 수집 {ago(hours) if hours is not None else fmt_dt(last.get('at', ''))}"
+                   f" · 초록 {last.get('analyzed', 0):,}편")
+
+    # 최근 7일 중 며칠 기록이 있는지. 날짜 단위로 세어 하루 여러 번 돈 날을 중복으로 세지 않는다.
+    recent_days = {r.get("date") for r in rows if r.get("ok")}
+    week = [(date.today() - timedelta(days=n)).isoformat() for n in range(7)]
+    hit = sum(1 for d in week if d in recent_days)
+    fails = sum(1 for r in rows[:7] if not r.get("ok"))
+    line = f"최근 7일 중 {hit}일 수집" + (f" · 실패 {fails}건" if fails else "")
+    ai_runs = [r for r in rows if r.get("ok") and (r.get("ai") or {}).get("ran")]
+    if ai_runs:
+        line += f" · AI 갱신 {day_label(ai_runs[0].get('date', ''))}"
+    st.caption(line)
+
+    with st.expander(f"최근 실행 {min(len(rows), RUN_LOG_ROWS)}건"):
+        table = []
+        for r in rows[:RUN_LOG_ROWS]:
+            ai = r.get("ai") or {}
+            table.append({
+                "날짜": day_label(r.get("date", "")),
+                "초록": r.get("analyzed") if r.get("ok") else None,
+                "공백": r.get("ideas") if r.get("ok") else None,
+                "AI": ("갱신" if ai.get("ran") else "재사용") if r.get("ok") else "—",
+                "상태": "정상" if r.get("ok") else "실패",
+            })
+        st.dataframe(pd.DataFrame(table), hide_index=True, width="stretch")
+        note = last.get("ai") or {}
+        if note.get("reason"):
+            st.caption(f"마지막 AI 판단: {note['reason']}"
+                       + (f" · 판정 {note.get('judged', 0)}건 · 제안 {note.get('suggested', 0)}건" if note.get("ran") else ""))
+        if note.get("failed"):
+            st.caption(f"AI 호출 실패 {note['failed']}건이 섞여 있습니다.")
+        if last.get("capped"):
+            st.caption("수집 상한에 걸렸습니다. 기간을 좁히거나 저널을 줄이면 더 촘촘히 봅니다.")
 
 
 def section(num: str, title: str, note: str = ""):
@@ -336,6 +501,9 @@ with st.sidebar:
     st.caption("NCBI E-utilities 기반 · 검색된 초록 전량 수집"
                + (" · API 키 적용" if creds.api_key else "")
                + (" · Gemini 고도화 가능" if secret("GEMINI_API_KEY") else " · GEMINI_API_KEY 없음"))
+    st.divider()
+    render_run_log()
+    st.divider()
     if st.session_state.snapshot:
         snap = st.session_state.snapshot
         st.info(f"일일 스냅샷 표시 중 ({fmt_dt(snap['generatedAt'])}). 조건을 바꿔 분석하면 실시간 결과로 전환됩니다.")
@@ -467,7 +635,12 @@ with right:
                 f'<div class="formula">좋은 아이디어 = 상승 신호 × 미충족 질문 × 가능한 데이터</div></div>', unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# 03 논문 아이디어 후보
+# 03 추천 연구기회 / 04 구조적 공백
+#
+# 탐지된 공백을 전부 "추천 아이디어"로 내놓으면, 실제로는 그 분야의 정상적 특성인
+# 공백(예: 감염 연구에 PROM이 적은 것)까지 추천으로 읽힌다. 판정 결과에 따라 자리를
+# 나누되 지우지는 않는다. 추천하지 않는 공백도 "왜 아닌지"와 그 분야의 1차 결과를
+# 함께 보여주면, 그 자체가 주제 선정에 쓸모 있는 정보다.
 # ---------------------------------------------------------------------------
 
 ideas, fell_back = active_ideas(analysis)
@@ -480,42 +653,23 @@ elif kind == "all" or fell_back:
     note = f"선택한 저널 전체 {analysis['analyzed']:,}편 기준" + (f" · {scope_label} 단독으로는 상승 신호가 부족합니다" if fell_back else "")
 else:
     note = f"{scope_label} {scope_count:,}편 기준"
-section("03", "논문 아이디어 후보", note)
-
-b1, b2, b3 = st.columns([1, 1, 4])
-if saved:
-    if b1.button("← 분석 결과로" if show_saved else f"★ 저장한 아이디어 {len(saved)}", width="stretch"):
-        st.session_state.show_saved = not st.session_state.show_saved
-        st.rerun()
-if show_saved:
-    b2.download_button("저장 목록 내려받기 ↓", saved_markdown(), f"arthroscope-saved-{date.today().isoformat()}.md",
-                       "text/markdown", width="stretch")
-else:
-    b2.download_button("보고서 내려받기 ↓", report_markdown(analysis, active_trends, scope_label, scope_count, ideas, fell_back),
-                       f"arthroscope-{analysis['dateTo']}.md", "text/markdown", width="stretch")
 
 shown = saved if show_saved else ideas
+opportunities, structural, pending = group_ideas(shown)
 gemini_key = secret("GEMINI_API_KEY")
 gemini_model = secret("GEMINI_MODEL") or GEMINI_DEFAULT_MODEL
 
-if not shown:
-    st.info("이 범위에서 탐지된 연구 공백이 없습니다. 공백이 없으면 아이디어도 만들지 않습니다.")
 
-for n, idea in enumerate(shown, 1):
+def render_idea(n: int, idea: dict):
     with st.container(border=True):
         top_l, top_r = st.columns([3, 1])
-        top_l.markdown(f"**IDEA {n:02d}** &nbsp; " + "".join(f'<span class="tag">{t}</span>' for t in idea["tags"]), unsafe_allow_html=True)
+        top_l.markdown(f"**{n:02d}** &nbsp; " + "".join(f'<span class="tag">{t}</span>' for t in idea["tags"]), unsafe_allow_html=True)
         top_r.markdown(f"<div style='text-align:right;font-size:12px'>독창성 <b>{idea['novelty']}/5</b> · 실현성 <b>{idea['feasibility']}/5</b></div>", unsafe_allow_html=True)
         st.markdown(f"#### {idea['title']}")
         st.write(idea["rationale"])
-        verdict = judgment_for(idea["id"])
-        if verdict and verdict.get("verdict") in VERDICT_LABEL:
-            label, cls = VERDICT_LABEL[verdict["verdict"]]
-            std = verdict.get("fieldStandard")
-            st.markdown(
-                f'<div class="verdict {cls}"><b>{label}</b> · 확신 {verdict.get("confidence", "-")}/5<br>{verdict.get("reason", "")}'
-                + (f'<span class="std">이 분야의 1차 결과: {std}</span>' if std else "")
-                + "</div>", unsafe_allow_html=True)
+        block = verdict_html(idea)
+        if block:
+            st.markdown(block, unsafe_allow_html=True)
         st.markdown(f"- **PICO** {idea['pico']}\n- **권장 설계** {idea['design']}\n- **1차 결과** {idea['primaryEndpoint']}")
         st.markdown("신호 근거 · " + " · ".join(f"[PMID {e['pmid']}]({pubmed(e['pmid'])})" for e in idea["evidence"]))
 
@@ -525,6 +679,7 @@ for n, idea in enumerate(shown, 1):
             toggle_saved(idea, scope_label)
             st.rerun()
         if not show_saved:
+            # 판정과 무관하게 열어 둔다. 판정은 참고 의견이고, 반대해 보고 싶은 사람도 있다.
             label = "✦ 다시 고도화" if suggestion_for(idea["id"]) else "✦ AI로 고도화"
             if c2.button(label, key=f"enh_{idea['id']}", width="stretch", disabled=not gemini_key,
                          help=None if gemini_key else "GEMINI_API_KEY를 설정하면 사용할 수 있습니다."):
@@ -558,8 +713,9 @@ for n, idea in enumerate(shown, 1):
                 st.caption(meta)
                 st.markdown(f"**연구 질문**  \n{sug.get('question', '')}")
                 if sug.get("pico"):
-                    p = sug["pico"]
-                    st.markdown(f"**PICO**  \n- P: {p.get('population', '')}\n- I: {p.get('intervention', '')}\n- C: {p.get('comparison', '')}\n- O: {p.get('outcome', '')}")
+                    pico = sug["pico"]
+                    st.markdown(f"**PICO**  \n- P: {pico.get('population', '')}\n- I: {pico.get('intervention', '')}\n"
+                                f"- C: {pico.get('comparison', '')}\n- O: {pico.get('outcome', '')}")
                 st.markdown(f"**선행연구 공백**  \n{sug.get('gap', '')}")
                 st.markdown(f"**권장 설계**  \n{sug.get('design', '')}")
                 if sug.get("limitations"):
@@ -567,11 +723,55 @@ for n, idea in enumerate(shown, 1):
                 if sug.get("evidence"):
                     st.markdown("**근거 PMID**  \n" + "\n".join(f"- [PMID {e['pmid']}]({pubmed(e['pmid'])}) {e.get('note', '')}" for e in sug["evidence"]))
 
+
+section("03", "저장한 아이디어" if show_saved else "추천 연구기회", note)
+
+b1, b2, b3 = st.columns([1, 1, 4])
+if saved:
+    if b1.button("← 분석 결과로" if show_saved else f"★ 저장한 아이디어 {len(saved)}", width="stretch"):
+        st.session_state.show_saved = not st.session_state.show_saved
+        st.rerun()
+if show_saved:
+    b2.download_button("저장 목록 내려받기 ↓", saved_markdown(), f"arthroscope-saved-{date.today().isoformat()}.md",
+                       "text/markdown", width="stretch")
+else:
+    b2.download_button("보고서 내려받기 ↓", report_markdown(analysis, active_trends, scope_label, scope_count, ideas, fell_back),
+                       f"arthroscope-{analysis['dateTo']}.md", "text/markdown", width="stretch")
+
+if not shown:
+    st.info("이 범위에서 탐지된 연구 공백이 없습니다. 공백이 없으면 아이디어도 만들지 않습니다.")
+elif show_saved:
+    for n, idea in enumerate(shown, 1):
+        render_idea(n, idea)
+else:
+    if opportunities:
+        st.caption(f"판정을 거친 공백 {len(opportunities) + len(structural)}개 중 {len(opportunities)}개가 "
+                   "임상적으로 답이 필요한데 실제로 비어 있는 구간으로 판정됐습니다.")
+        for n, idea in enumerate(opportunities, 1):
+            render_idea(n, idea)
+    elif structural:
+        st.info("이번 범위에서는 연구기회로 판정된 공백이 없습니다. 탐지된 공백은 모두 아래 구조적 공백으로 분류됐습니다. "
+                "판정에 동의하지 않는다면 아래 카드에서 그대로 저장하거나 고도화할 수 있습니다.")
+    # 실시간 분석에는 판정이 없다(판정은 일일 스냅샷에서만 돈다). 없는 판정을 있는 척하지
+    # 않고, 판정 전 후보로 같은 자리에 둔다.
+    for n, idea in enumerate(pending, len(opportunities) + 1):
+        render_idea(n, idea)
+    if pending and not opportunities:
+        st.caption("일일 스냅샷이 아닌 실시간 분석 결과라 공백 판정이 아직 없습니다. "
+                   "위 목록은 통계가 찾아낸 공백 그대로이며, 구조적 공백이 섞여 있을 수 있습니다.")
+
+    if structural:
+        section("04", "구조적 공백", f"{len(structural)}개 · 통계적으로는 비어 있지만 그 분야의 정상적 특성이거나 이미 다뤄지는 구간")
+        st.caption("삭제하지 않고 남겨 둡니다. 왜 추천하지 않았는지와 그 분야가 실제로 쓰는 1차 결과를 함께 보면, "
+                   "같은 주제로 연구를 설계할 때 무엇을 결과변수로 잡아야 하는지가 드러납니다.")
+        for n, idea in enumerate(structural, 1):
+            render_idea(n, idea)
+
 st.markdown(f'<div class="caveat"><b>중요 · ‘아이디어 후보’이지 독창성 확정 판정은 아닙니다.</b> 선택한 {len(analysis["journals"])}개 저널 밖의 PubMed 전체 검색, '
             "ClinicalTrials.gov/WHO ICTRP, PROSPERO 및 학회 초록을 확인한 뒤 연구계획서로 발전시키세요.</div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# 04 근거 초록
+# 05 근거 초록
 # ---------------------------------------------------------------------------
 
 topic_options = ["전체"] + [t["label"] for t in active_trends[:5]]
@@ -579,7 +779,7 @@ if st.session_state.active_topic not in topic_options and st.session_state.activ
     topic_options.append(st.session_state.active_topic)
 filtered = [a for a in analysis["articles"] if in_scope(a)
             and (st.session_state.active_topic == "전체" or st.session_state.active_topic in a["topics"])]
-section("04", "근거 초록", f"{len(filtered)}편 표시 가능")
+section("05", "근거 초록", f"{len(filtered)}편 표시 가능")
 
 picked_topic = st.radio("주제", topic_options, index=topic_options.index(st.session_state.active_topic), horizontal=True, key="topic_radio")
 if picked_topic != st.session_state.active_topic:
