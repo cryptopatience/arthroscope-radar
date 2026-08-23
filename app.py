@@ -14,9 +14,12 @@ import pandas as pd
 import requests
 import streamlit as st
 
+from radar import config
 from radar.analysis import FAMILIES, FAMILY_ORDER, JOURNAL_ORDER, JOURNALS, AnalysisError, run_analysis
 from radar.gemini import ENHANCE_MIN, GEMINI_DEFAULT_MODEL, enhance_idea, pmids_for_idea
 from radar.judge import VERDICT_LABEL, evidence_summary
+from radar.selection import PROM_SUBTYPES, gap_category, select
+from radar.vocabulary import GAP_CATEGORIES
 from radar.ncbi import NcbiCredentials
 
 TREND_ROWS = 9          # 편수 순 표에서 먼저 보여주는 행 수. 그 아래 상승 신호는 따로 덧붙인다.
@@ -65,6 +68,14 @@ st.markdown("""
 .lv.high { background:#d7f7e7; color:#176b48; } .lv.mid { background:#eee9df; color:#4f5a56; }
 .lv.low { background:#ffe2dc; color:#a4261d; }
 .muted-card { opacity:.92; }
+.gapcat { display:inline-block; background:#10231f; color:#b9f4dc; font-size:10px; font-weight:700;
+          letter-spacing:.08em; padding:2px 9px; border-radius:3px; margin-right:6px; }
+.scores { display:flex; flex-wrap:wrap; gap:10px; margin:8px 0 2px; font-size:11.5px; color:var(--muted); }
+.scores b { color:var(--ink); }
+.scores .na { color:#a4261d; }
+.prior { border-left:3px solid #c8bda8; background:#faf7f1; padding:9px 13px; margin:6px 0;
+         font-size:12px; color:#4a544f; }
+.prior b { color:var(--ink); }
 .caveat { border-left:4px solid var(--coral); background:#fff3f0; padding:12px 16px; font-size:13px; margin:16px 0; }
 .article { border-top:1px solid var(--line); padding:12px 0; }
 .article .meta { color:var(--muted); font-size:11px; margin-bottom:4px; }
@@ -311,18 +322,79 @@ def verdict_html(idea: dict) -> str:
     return block + "</div>"
 
 
-def group_ideas(ideas: list[dict]) -> tuple[list[dict], list[dict], list[dict]]:
-    """추천 연구기회 · 구조적 공백 · 미판정. 판정된 것을 지우지 않고 자리를 나눠 준다."""
-    opportunity, structural, pending = [], [], []
-    for idea in ideas:
-        judgment = judgment_for(idea["id"])
-        if not judgment:
-            pending.append(idea)
-        elif judgment["verdict"] == "opportunity":
-            opportunity.append(idea)
-        else:
-            structural.append(idea)
-    return opportunity, structural, pending
+def plan_ideas(ideas: list[dict]) -> dict:
+    """후보를 최종·구조적·중복·미판정으로 가른다.
+
+    앱에서 직접 계산한다. 스냅샷에도 결과가 들어 있지만, 실시간 분석에는 없고
+    옛 스냅샷에도 없다. 순수 계산이라(후보 15개 → 조합 3,003가지) 매번 돌려도 된다.
+    """
+    judgments = (st.session_state.snapshot or {}).get("judgments") or {}
+    judged = {i["id"] for i in ideas if judgment_for(i["id"])}
+    pending = [i for i in ideas if i["id"] not in judged]
+    if not judged:
+        return {"final": [], "structural": [], "duplicates": [], "pending": pending,
+                "provisional": [], "scores": {}, "distinctCategories": 0, "shortOfTarget": False}
+    picked = select([i for i in ideas if i["id"] in judged], judgments)
+    final_ids = {i["id"] for i in picked["final"]}
+    dup_ids = {i["id"] for i in picked["duplicates"]}
+    blocked_ids = {i["id"] for i in picked["blocked"]}
+    # 차단된 것 중 진짜 구조적 공백과 "카테고리가 없어서 빠진 것"을 나눈다.
+    # 옛 스냅샷의 아이디어에는 공백 유형이 없는데, 그것을 구조적 공백이라고 부르면
+    # 판정하지 않은 것을 판정한 것처럼 보여주게 된다.
+    structural = [i for i in picked["blocked"]
+                  if (judgment_for(i["id"]) or {}).get("verdict") == "structural"]
+    unclassified = [i for i in picked["blocked"] if i not in structural]
+    # 최종에 못 든 나머지(uncertain·제약 탈락)는 검토 대상으로 남긴다.
+    prov_ids = {i["id"] for i in picked.get("provisional") or []}
+    leftover = [i for i in ideas if i["id"] in judged
+                and i["id"] not in final_ids | dup_ids | blocked_ids | prov_ids]
+    return {"final": picked["final"], "structural": structural,
+            "duplicates": picked["duplicates"] + leftover + unclassified, "pending": pending,
+            "provisional": picked.get("provisional") or [],
+            "scores": picked["allScores"], "distinctCategories": picked["distinctCategories"],
+            "shortOfTarget": picked["shortOfTarget"],
+            "combinationsChecked": picked.get("combinationsChecked", 0)}
+
+
+AXIS_LABEL = {"evidence_strength": "근거", "novelty": "독창성", "clinical_importance": "임상 중요성",
+              "methodological_advance": "방법론", "feasibility": "실현성"}
+
+
+def scores_html(score: dict | None) -> str:
+    if not score:
+        return ""
+    cells = []
+    for axis, label in AXIS_LABEL.items():
+        value = score["axes"].get(axis)
+        cells.append(f'<span>{label} <b>{value}/5</b></span>' if value is not None
+                     else f'<span class="na">{label} <b>미측정</b></span>')
+    cells.append(f'<span>합계 <b>{score["total"]}</b></span>')
+    return '<div class="scores">' + "".join(cells) + "</div>"
+
+
+def prior_art_html(idea: dict) -> str:
+    """가장 유사한 선행연구. 최근 12개월 코퍼스로는 못 하는 판단이라 따로 보여준다."""
+    prior = idea.get("priorArt")
+    if not isinstance(prior, dict):
+        return ""
+    if prior.get("error"):
+        return f'<div class="prior"><b>선행연구 확인 실패</b> — {prior["error"]}</div>'
+    direct = prior.get("matchCount")
+    if direct is None:
+        head = "<b>선행연구 미측정</b>"
+    else:
+        head = (f'<b>선행연구 직접 {direct}편</b> · 인접 {prior.get("adjacentCount", 0)}편 '
+                f'· 배경 {prior.get("backgroundCount", 0)}편')
+    block = (f'<div class="prior">{head} '
+             f'(PubMed 전체 최근 {prior.get("years", "?")}년 · 검색 {prior.get("total", 0)}건 중 '
+             f'초록 {prior.get("examined", 0)}편 확인)')
+    for label, key in (("직접", "matches"), ("인접", "adjacent")):
+        for m in (prior.get(key) or [])[:2]:
+            block += (f'<br>· [{label}] <a href="{pubmed(m["pmid"])}" target="_blank">PMID {m["pmid"]}</a> '
+                      f'({m.get("year", "")}, {m.get("journal", "")}) {m.get("title", "")[:85]}')
+    if prior.get("note"):
+        block += f'<br><i>{prior["note"]}</i>'
+    return block + "</div>"
 
 
 def is_saved(idea_id: str) -> bool:
@@ -361,7 +433,17 @@ def report_markdown(analysis: dict, trends: list[dict], scope_label: str, scope_
     for t in trends[:8]:
         lines.append(f"- {t['label']}: {t['count']}편, 최근 반기 {t['recent']}편 vs 이전 반기 {t['previous']}편 ({'+' if t['delta'] > 0 else ''}{t['delta']}%)")
     def block(n: int, idea: dict) -> list[str]:
-        rows = [f"### {n}. {idea['title']}", "", idea["rationale"], ""]
+        rows = [f"### {n}. {idea['title']}", ""]
+        category = gap_category(idea)
+        if category in GAP_CATEGORIES:
+            rows.append(f"- 공백 유형: {GAP_CATEGORIES[category]['label']} — {GAP_CATEGORIES[category]['note']}")
+        rows += ["", idea["rationale"], ""]
+        prior = idea.get("priorArt")
+        if isinstance(prior, dict) and not prior.get("error"):
+            rows.append(f"- 선행연구: PubMed 전체 최근 {prior.get('years', '?')}년에서 "
+                        f"같은 질문을 다룬 논문 {prior.get('matchCount', 0)}편")
+            rows += [f"  - PMID {m['pmid']} ({m.get('year', '')}, {m.get('journal', '')}) {m.get('title', '')}"
+                     for m in prior.get("matches", [])[:3]]
         judgment = judgment_for(idea["id"])
         if judgment:
             rows.append(f"- 판정: {VERDICT_LABEL[judgment['verdict']]}")
@@ -379,9 +461,10 @@ def report_markdown(analysis: dict, trends: list[dict], scope_label: str, scope_
                  f"- 근거 PMID: {', '.join(e['pmid'] for e in idea['evidence'])}", ""]
         return rows
 
-    opportunities, structural, pending = group_ideas(ideas)
+    grouped = plan_ideas(ideas)
+    opportunities, structural, pending = grouped["final"], grouped["structural"], grouped["pending"]
     if opportunities or pending:
-        lines += ["", "## 추천 연구기회" if opportunities else "## 연구 아이디어 후보 (판정 전)", ""]
+        lines += ["", "## 최종 논문 아이디어" if opportunities else "## 연구 아이디어 후보 (판정 전)", ""]
         for n, idea in enumerate(opportunities + pending, 1):
             lines += block(n, idea)
     if structural:
@@ -655,7 +738,7 @@ else:
     note = f"{scope_label} {scope_count:,}편 기준"
 
 shown = saved if show_saved else ideas
-opportunities, structural, pending = group_ideas(shown)
+plan = None if show_saved else plan_ideas(shown)
 gemini_key = secret("GEMINI_API_KEY")
 gemini_model = secret("GEMINI_MODEL") or GEMINI_DEFAULT_MODEL
 
@@ -663,15 +746,26 @@ gemini_model = secret("GEMINI_MODEL") or GEMINI_DEFAULT_MODEL
 def render_idea(n: int, idea: dict):
     with st.container(border=True):
         top_l, top_r = st.columns([3, 1])
-        top_l.markdown(f"**{n:02d}** &nbsp; " + "".join(f'<span class="tag">{t}</span>' for t in idea["tags"]), unsafe_allow_html=True)
+        category = gap_category(idea)
+        badge = (f'<span class="gapcat">{GAP_CATEGORIES[category]["label"]}</span>'
+                 if category in GAP_CATEGORIES else '<span class="gapcat">분류 없음</span>')
+        top_l.markdown(f"**{n:02d}** &nbsp; " + badge
+                       + "".join(f'<span class="tag">{t}</span>' for t in idea["tags"]), unsafe_allow_html=True)
         top_r.markdown(f"<div style='text-align:right;font-size:12px'>독창성 <b>{idea['novelty']}/5</b> · 실현성 <b>{idea['feasibility']}/5</b></div>", unsafe_allow_html=True)
         st.markdown(f"#### {idea['title']}")
         st.write(idea["rationale"])
         block = verdict_html(idea)
         if block:
             st.markdown(block, unsafe_allow_html=True)
-        st.markdown(f"- **PICO** {idea['pico']}\n- **권장 설계** {idea['design']}\n- **1차 결과** {idea['primaryEndpoint']}")
+        score = plan["scores"].get(idea["id"]) if plan else None
+        if score:
+            st.markdown(scores_html(score), unsafe_allow_html=True)
+        st.markdown(f"- **연구대상·비교군** {idea['pico']}\n- **권장 설계** {idea['design']}\n"
+                    f"- **1차 결과변수** {idea['primaryEndpoint']}")
         st.markdown("신호 근거 · " + " · ".join(f"[PMID {e['pmid']}]({pubmed(e['pmid'])})" for e in idea["evidence"]))
+        block = prior_art_html(idea)
+        if block:
+            st.markdown(block, unsafe_allow_html=True)
 
         c1, c2, _ = st.columns([1, 1, 3])
         saved_now = is_saved(idea["id"])
@@ -724,7 +818,7 @@ def render_idea(n: int, idea: dict):
                     st.markdown("**근거 PMID**  \n" + "\n".join(f"- [PMID {e['pmid']}]({pubmed(e['pmid'])}) {e.get('note', '')}" for e in sug["evidence"]))
 
 
-section("03", "저장한 아이디어" if show_saved else "추천 연구기회", note)
+section("03", "저장한 아이디어" if show_saved else "최종 논문 아이디어", note)
 
 b1, b2, b3 = st.columns([1, 1, 4])
 if saved:
@@ -744,34 +838,52 @@ elif show_saved:
     for n, idea in enumerate(shown, 1):
         render_idea(n, idea)
 else:
-    if opportunities:
-        st.caption(f"판정을 거친 공백 {len(opportunities) + len(structural)}개 중 {len(opportunities)}개가 "
-                   "임상적으로 답이 필요한데 실제로 비어 있는 구간으로 판정됐습니다.")
-        for n, idea in enumerate(opportunities, 1):
+    if plan["final"]:
+        st.caption(f"후보 {len(shown)}개에서 구조적 공백과 최소 통과점수({config.MIN_FINAL_SCORE}점) 미달을 빼고, "
+                   f"클러스터×공백이 같거나 문장 구조가 같은 것을 합친 뒤, "
+                   f"전역 제약(카테고리별 최대 {config.MAX_PER_GAP_CATEGORY}개 · PROM 최대 {config.MAX_PROM_IDEAS}개) 아래 "
+                   f"{plan.get('combinationsChecked', 0):,}가지 조합을 모두 계산해 최고점을 골랐습니다 — "
+                   f"{len(plan['final'])}개 · 서로 다른 공백 유형 {plan['distinctCategories']}종."
+                   + (" 자격을 통과한 후보가 부족해 목표보다 적습니다." if plan["shortOfTarget"] else ""))
+        for n, idea in enumerate(plan["final"], 1):
             render_idea(n, idea)
-    elif structural:
-        st.info("이번 범위에서는 연구기회로 판정된 공백이 없습니다. 탐지된 공백은 모두 아래 구조적 공백으로 분류됐습니다. "
+    elif plan["structural"]:
+        st.info("이번 범위에서는 최종 아이디어로 올릴 공백이 없습니다. 탐지된 공백이 모두 구조적으로 판정됐습니다. "
                 "판정에 동의하지 않는다면 아래 카드에서 그대로 저장하거나 고도화할 수 있습니다.")
     # 실시간 분석에는 판정이 없다(판정은 일일 스냅샷에서만 돈다). 없는 판정을 있는 척하지
     # 않고, 판정 전 후보로 같은 자리에 둔다.
-    for n, idea in enumerate(pending, len(opportunities) + 1):
+    for n, idea in enumerate(plan["pending"], len(plan["final"]) + 1):
         render_idea(n, idea)
-    if pending and not opportunities:
-        st.caption("일일 스냅샷이 아닌 실시간 분석 결과라 공백 판정이 아직 없습니다. "
+    if plan["pending"] and not plan["final"]:
+        st.caption("일일 스냅샷이 아닌 실시간 분석 결과라 공백 판정과 선행연구 검증이 아직 없습니다. "
                    "위 목록은 통계가 찾아낸 공백 그대로이며, 구조적 공백이 섞여 있을 수 있습니다.")
 
-    if structural:
-        section("04", "구조적 공백", f"{len(structural)}개 · 통계적으로는 비어 있지만 그 분야의 정상적 특성이거나 이미 다뤄지는 구간")
+    if plan["structural"]:
+        section("04", "구조적 공백", f"{len(plan['structural'])}개 · 통계적으로는 비어 있지만 그 분야의 정상적 특성")
         st.caption("삭제하지 않고 남겨 둡니다. 왜 추천하지 않았는지와 그 분야가 실제로 쓰는 1차 결과를 함께 보면, "
                    "같은 주제로 연구를 설계할 때 무엇을 결과변수로 잡아야 하는지가 드러납니다.")
-        for n, idea in enumerate(structural, 1):
+        for n, idea in enumerate(plan["structural"], 1):
             render_idea(n, idea)
+
+    if plan.get("provisional"):
+        section("05", "검증 대기", f"{len(plan['provisional'])}개 · 선행연구 검증이 없어 독창성을 측정하지 못한 후보")
+        st.caption("공백 자체는 확인됐지만, 같은 연구가 이미 있는지 확인하지 못했습니다. "
+                   "독창성을 임의로 채우지 않고 최종에서 뺐습니다 — 선행연구 검증이 끝나면 후보로 돌아옵니다.")
+        for n, idea in enumerate(plan["provisional"], 1):
+            render_idea(n, idea)
+
+    if plan["duplicates"]:
+        with st.expander(f"검토 대상 {len(plan['duplicates'])}개 — 의미가 겹치거나 제약에서 밀린 후보"):
+            st.caption("같은 공백 틀에서 나와 연구 질문·설계·1차 결과의 구조가 겹치거나, 판정이 uncertain이거나, "
+                       "전역 제약에 걸려 최종에서 빠진 후보입니다. 최종 목록의 대안으로 볼 수 있습니다.")
+            for n, idea in enumerate(plan["duplicates"], 1):
+                render_idea(n, idea)
 
 st.markdown(f'<div class="caveat"><b>중요 · ‘아이디어 후보’이지 독창성 확정 판정은 아닙니다.</b> 선택한 {len(analysis["journals"])}개 저널 밖의 PubMed 전체 검색, '
             "ClinicalTrials.gov/WHO ICTRP, PROSPERO 및 학회 초록을 확인한 뒤 연구계획서로 발전시키세요.</div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# 05 근거 초록
+# 06 근거 초록
 # ---------------------------------------------------------------------------
 
 topic_options = ["전체"] + [t["label"] for t in active_trends[:5]]
@@ -779,7 +891,7 @@ if st.session_state.active_topic not in topic_options and st.session_state.activ
     topic_options.append(st.session_state.active_topic)
 filtered = [a for a in analysis["articles"] if in_scope(a)
             and (st.session_state.active_topic == "전체" or st.session_state.active_topic in a["topics"])]
-section("05", "근거 초록", f"{len(filtered)}편 표시 가능")
+section("06", "근거 초록", f"{len(filtered)}편 표시 가능")
 
 picked_topic = st.radio("주제", topic_options, index=topic_options.index(st.session_state.active_topic), horizontal=True, key="topic_radio")
 if picked_topic != st.session_state.active_topic:

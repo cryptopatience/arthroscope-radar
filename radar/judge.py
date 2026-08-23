@@ -21,29 +21,35 @@ from dataclasses import dataclass
 
 import requests
 
+from . import config
 from .gemini import GEMINI_DEFAULT_MODEL, call_gemini
+from .vocabulary import (CANONICAL_OUTCOME_VERSION, GAP_CATEGORIES, KEYWORD_DICT_VERSION,
+                         STRUCTURAL_PRIORS, canonical)
 
 # 판정에 넣는 대표 논문 수. 제목만 보내므로 고도화보다 훨씬 싸다.
 JUDGE_TITLES = 12
 # 판정 프롬프트나 아래 스키마를 고치면 이 값을 올린다. 캐시 키에 들어가므로 옛 판정이 무효화된다.
 # 프롬프트만 바꾸고 이 값을 안 올리면 지난 판정이 그대로 재사용된다.
-JUDGE_PROMPT_VERSION = "3"
+JUDGE_PROMPT_VERSION = "5"
 # 안정성 측정 반복 수. 홀수여야 동률이 덜 생긴다.
 JUDGE_RUNS = 5
 # 교차 검증용 두 번째 Gemini 모델. 같은 회사지만 크기·학습이 달라 판정이 실제로 갈린다.
 GEMINI_SECOND_MODEL = "gemini-2.5-flash"
 OPENAI_DEFAULT_MODEL = "gpt-4o"
 
-VERDICTS = ("opportunity", "structural", "answered")
-# 동률일 때 고르는 순서. 보수적으로 structural을 앞에 둔다(daily.py의 기본값과 같은 이유).
-TIE_ORDER = {"structural": 0, "answered": 1, "opportunity": 2}
+# answered("이미 답해졌다")를 판정에서 뺐다. 그 질문은 최근 12개월 코퍼스로는
+# 답할 수 없다 — 선행연구 검증 단계가 PubMed 전체를 다시 뒤져 판단한다.
+# 대신 uncertain을 둔다: 근거가 얇거나 그 분야의 기준 결과변수 적합성이 애매한 경우.
+VERDICTS = ("opportunity", "structural", "uncertain")
+# 동률일 때 고르는 순서. 보수적으로 structural을 앞에 둔다.
+TIE_ORDER = {"structural": 0, "uncertain": 1, "opportunity": 2}
 
 JUDGE_SCHEMA = {
     "type": "object",
     "properties": {
-        # opportunity  = 실제로 비어 있고 채울 가치가 있다
-        # structural   = 그 분야의 1차 결과가 원래 다르다. 통계적 공백일 뿐 기회가 아니다
-        # answered     = 이미 충분히 답해졌거나 이 코퍼스 밖에서 다뤄지고 있다
+        # opportunity = 중요한데 실제로 비어 있다
+        # structural  = 그 분야의 1차 결과가 원래 다르다. 통계적 공백일 뿐 기회가 아니다
+        # uncertain   = 근거가 얇거나 기준 결과변수 적합성이 애매하다
         "verdict": {"type": "string", "enum": list(VERDICTS)},
         "reason": {"type": "string"},
         "fieldStandard": {"type": "string"},
@@ -96,6 +102,16 @@ def call_openai(api_key: str, model: str, prompt: str, schema: dict) -> dict:
         raise RuntimeError("OpenAI 응답을 해석하지 못했습니다.")
 
 
+def cache_versions() -> str:
+    """사전·기준표·임계값·프롬프트 버전을 한 문자열로. 캐시 키에 넣는다.
+
+    하나라도 바뀌면 옛 판정이 재사용되면 안 된다. 프롬프트만 버전을 달아 두면
+    용어 사전을 고쳤을 때 조용히 옛 결과가 살아남는다.
+    """
+    return (f"p{JUDGE_PROMPT_VERSION}.k{KEYWORD_DICT_VERSION}"
+            f".c{CANONICAL_OUTCOME_VERSION}.t{config.CONFIG_VERSION}.r{JUDGE_RUNS}")
+
+
 def build_panel(gemini_key: str, gemini_model: str = "", second_model: str = "",
                 openai_key: str = "", openai_model: str = "") -> list[Judge]:
     """판정단. 첫 번째가 주 판정자이고, 안정성은 이 판정자를 반복해 잰다."""
@@ -114,7 +130,7 @@ def _ask(judge: Judge, prompt: str) -> dict:
     else:
         parsed = call_gemini(judge.api_key, judge.model, prompt, JUDGE_SCHEMA)
     verdict = str(parsed.get("verdict", "")).lower()
-    return {"verdict": verdict if verdict in VERDICTS else "answered",
+    return {"verdict": verdict if verdict in VERDICTS else "uncertain",
             "reason": str(parsed.get("reason", "")),
             "fieldStandard": str(parsed.get("fieldStandard", ""))}
 
@@ -124,25 +140,42 @@ def _ask(judge: Judge, prompt: str) -> dict:
 # ---------------------------------------------------------------------------
 
 def judge_prompt(idea: dict, scope: str, period: str, titles: list[str]) -> str:
-    return f"""당신은 정형외과 무릎 분야의 연구 심사자입니다. 규칙 기반 분석기가 문헌 통계에서 "공백"을 하나 찾았습니다. 이 공백이 실제 연구 기회인지, 아니면 그 분야의 정상적인 특성인지 판정하십시오.
+    cluster = idea.get("clusterId") or (idea.get("tags") or [""])[0]
+    spec = idea.get("canonical") or canonical(cluster)
+    category = idea.get("gapCategory", "")
+    category_note = (GAP_CATEGORIES.get(category) or {}).get("note", "")
+    structural_prior = STRUCTURAL_PRIORS.get(category, "")
+    primary = ", ".join(spec.get("primary") or []) or "정의되지 않음"
+    reviewed = "전문가 확인됨" if spec.get("reviewed") else "잠정값 (전문가 확인 전)"
+    return f"""당신은 정형외과 무릎 분야의 연구 심사자입니다. 규칙 기반 분석기가 문헌 통계에서 공백을 하나 찾았습니다. 이 공백이 실제 연구 기회인지, 그 분야의 정상적 특성인지 판정하십시오.
 
 [분석 범위] {scope} · {period}
 
-[통계가 찾아낸 공백]
+[판정 대상 — 클러스터 하나가 아니라 "클러스터 × 공백" 하나입니다]
+클러스터: {cluster}
+공백 종류: {category} — {category_note}
 제목: {idea.get('title', '')}
-근거: {idea.get('rationale', '')}
-주제 태그: {', '.join(idea.get('tags', []))}
+통계 근거: {idea.get('rationale', '')}
+
+[이 분야가 원래 1차 결과로 삼는 것] ({reviewed})
+{primary}
+
+[이 종류의 공백에서 흔히 '구조적'인 경우]
+{structural_prior}
 
 [해당 주제의 대표 논문 제목]
 {chr(10).join(f'- {t}' for t in titles)}
 
 판정 기준:
-1. 이 지표가 낮은 것이 그 분야에서 **당연한** 일인지 먼저 따지십시오. 예를 들어 인공관절 감염 연구의 1차 결과는 균 박멸·재감염이지 환자보고 결과가 아닙니다. 이런 경우는 통계적으로 비어 있어도 연구 공백이 아니라 분야의 정상적 특성이므로 structural입니다.
-2. 이 질문이 이미 충분히 답해졌거나, 이 코퍼스에 포함되지 않은 다른 학술지·학회에서 활발히 다뤄지고 있다고 판단되면 answered입니다.
-3. 위 둘 다 아니고, 임상적으로 답이 필요한데 실제로 비어 있다면 opportunity입니다.
-4. 이 코퍼스를 3년치 추적한 결과, 이런 공백의 대부분은 해가 바뀌어도 그대로 유지되는 구조적 특성이었습니다(공백 크기의 연도간 상관 0.9 이상). 따라서 기본값은 structural이고, opportunity는 예외적인 판정입니다. 애매하면 structural로 판정하십시오.
-5. fieldStandard에는 **판정과 무관하게 항상** 이 주제 분야가 실제로 1차 결과로 쓰는 지표를 쓰십시오. structural이면 "그래서 이 공백이 공백이 아니다"의 근거가 되고, opportunity면 "새 연구가 무엇과 비교돼야 하는지"의 기준이 됩니다.
-6. reason은 2~3문장의 한국어로, 왜 그렇게 판정했는지 임상적 근거를 들어 쓰십시오. 통계 수치를 반복하지 마십시오. 확신도를 스스로 매기지 마십시오 — 그 판단은 이 프롬프트를 여러 번 돌려 밖에서 잽니다."""
+1. 먼저 위 "이 종류의 공백에서 흔히 구조적인 경우"에 해당하는지 보십시오. 해당한다면 통계적으로 비어 있어도 연구 공백이 아니라 분야·연구단계의 정상적 특성이므로 **structural**입니다. 이 검사는 PROM뿐 아니라 모든 종류의 공백에 적용합니다 — 도입된 지 3년 된 기술에 10년 생존율이 없는 것, 단일군 feasibility 연구에 비교군이 없는 것, 발생률 1%인 합병증에 무작위시험이 없는 것은 전부 구조적입니다.
+2. 다음으로 "이 분야가 원래 1차 결과로 삼는 것"과 이 공백이 묻는 지표를 견주십시오. 그 분야의 목적상 덜 보고되는 것이 자연스럽다면 역시 **structural**입니다. 다만 1차 결과가 아니라는 것과 연구 가치가 없다는 것은 다릅니다 — 예를 들어 감염이 치료된 뒤의 기능 회복은 1차 결과가 아니어도 물을 가치가 있습니다. 그 구분을 하십시오.
+3. 위 기준 결과변수가 "잠정값"으로 표시돼 있고 그 정의가 이 분야에 맞지 않는다고 판단되면, 그 사실을 reason에 적고 **uncertain**으로 판정하십시오. 틀린 정의 위에서 내린 판정은 쓸모가 없습니다.
+4. 통계 근거가 얇거나(표본이 작거나 격차가 미미하거나) 이 공백이 임상적으로 중요한지 판단이 서지 않으면 **uncertain**입니다. 억지로 둘 중 하나를 고르지 마십시오.
+5. 그 분야의 목적에 비추어 중요한 결과인데도 실제로 비어 있고, 채우면 진료가 달라질 수 있다면 **opportunity**입니다.
+6. 이 코퍼스를 3년치 추적한 결과, 이런 공백의 대부분은 해가 바뀌어도 유지되는 구조적 특성이었습니다(공백 크기의 연도간 상관 0.9 이상). 기본값은 structural이고 opportunity는 예외적인 판정입니다.
+7. "이미 다른 학술지에서 답해졌는가"는 판정하지 마십시오. 이 프롬프트는 최근 {period} 코퍼스만 봅니다. 선행연구 확인은 다음 단계에서 PubMed 전체를 다시 검색해 따로 합니다.
+8. fieldStandard에는 **판정과 무관하게 항상** 이 분야가 실제로 1차 결과로 쓰는 지표를 쓰십시오. structural이면 왜 공백이 아닌지의 근거가 되고, opportunity면 새 연구가 무엇과 비교돼야 하는지의 기준이 됩니다.
+9. reason은 2~3문장의 한국어로, 임상적 근거를 들어 쓰십시오. 통계 수치를 반복하지 마십시오. 확신도를 스스로 매기지 마십시오 — 그 판단은 이 프롬프트를 여러 번 돌려 밖에서 잽니다."""
 
 
 def titles_for_idea(idea: dict, pool: list[dict], limit: int = JUDGE_TITLES) -> list[str]:
@@ -211,13 +244,18 @@ def judge_panel(idea: dict, titles: list[str], scope: str, period: str, panel: l
 VERDICT_LABEL = {
     "opportunity": "추천 연구기회",
     "structural": "구조적 공백 — 이 분야의 정상적 특성",
-    "answered": "구조적 공백 — 이미 다뤄지고 있음",
+    "uncertain": "검토 필요 — 근거 또는 적합성이 애매함",
 }
+
+# structural은 최종 후보에서 제외한다. uncertain은 남기되 가점을 주지 않는다.
+BLOCKED_VERDICTS = {"structural"}
 
 # 판정과 방향이 맞는 시간 변화. structural이면 공백이 그대로 유지돼야 판정이 맞고,
 # opportunity·answered면 최근 반기에 실제로 움직였어야 판정이 맞다.
-TEMPORAL_SUPPORT = {"opportunity": {"narrowing"}, "answered": {"narrowing"},
-                    "structural": {"persistent", "widening"}}
+# uncertain은 어느 쪽도 예측하지 않으므로 시간 신호로 지지·반박되지 않는다.
+TEMPORAL_SUPPORT = {"opportunity": {"narrowing"},
+                    "structural": {"persistent", "widening"},
+                    "uncertain": set()}
 TEMPORAL_TEXT = {"narrowing": "공백이 좁혀지는 중", "widening": "공백이 벌어지는 중",
                  "persistent": "공백이 그대로 유지됨", "unknown": "반기 표본이 적어 판단 불가"}
 
@@ -267,7 +305,10 @@ def evidence_summary(judgment: dict | None, metrics: dict | None) -> dict | None
         consensus_text = "단일 판정자 (교차 검증 없음)"
 
     temporal = (metrics.get("temporal") or {}).get("direction", "unknown")
-    if temporal != "unknown":
+    if temporal != "unknown" and verdict == "uncertain":
+        # 판정이 아직 어느 쪽도 아니면 시간 신호는 지지도 반박도 아니다. 보여만 준다.
+        temporal_text = f"참고 — {TEMPORAL_TEXT[temporal]}"
+    elif temporal != "unknown":
         measured += 1
         supports = temporal in TEMPORAL_SUPPORT.get(verdict, set())
         score += 1 if supports else -1

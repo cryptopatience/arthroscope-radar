@@ -23,12 +23,14 @@ for _stream in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
+from radar import config  # noqa: E402
 from radar.analysis import JOURNAL_ORDER, JOURNALS, run_analysis  # noqa: E402
 from radar.gemini import (GEMINI_DEFAULT_MODEL, ENHANCE_MIN, enhance_idea,  # noqa: E402
                           family_trend_report, pmids_for_idea)
-from radar.judge import (JUDGE_PROMPT_VERSION, JUDGE_RUNS, build_panel, evidence_summary,  # noqa: E402
-                         judge_panel, titles_for_idea)
+from radar.judge import (BLOCKED_VERDICTS, JUDGE_RUNS, build_panel, cache_versions,  # noqa: E402
+                         evidence_summary, judge_panel, titles_for_idea)
 from radar.ncbi import NcbiCredentials  # noqa: E402
+from radar import prior_art, selection  # noqa: E402
 
 FAMILY_LABEL = {
     "arthroplasty": "관절성형 계열 (JOA·AT·BJJ·JBJS Am·CORR·Acta Orthop)",
@@ -36,9 +38,8 @@ FAMILY_LABEL = {
 }
 MONTHS_BACK = 12
 IDEA_ABSTRACTS = 32
-AI_IDEA_LIMIT = 4       # 규칙 기반 아이디어는 8개를 다 보여주되, Gemini 고도화는 이만큼만.
-                        # 나머지는 앱에서 "AI로 고도화" 버튼으로 필요할 때 개별 호출한다.
-                        # 고도화 대상은 "점수 상위"가 아니라 "판정을 통과한 것 중 상위"다.
+# 고도화는 최종 선정된 아이디어에만 한다. 후보 15개를 전부 고도화하면 비용이
+# 세 배가 되는데, 그중 열 개는 어차피 전역 제약에서 떨어진다.
 TREND_ABSTRACTS = 30
 GEMINI_WEEKDAY = 4      # 0=월 … 4=금. 초록 수집은 매일, Gemini 분석은 이 요일에만.
 SNAPSHOT = Path("data/daily.json")
@@ -116,8 +117,9 @@ def judge_all(ideas, pool, scope, period, panel, prev: dict) -> dict:
     for idea in ideas:
         # 판정은 특정 초록이 아니라 주제 자체에 대한 것이므로 PMID 집합으로 캐싱하지 않는다.
         # novelty는 z에서 파생되므로, 공백 크기가 실질적으로 변하면 키가 바뀐다.
+        # 사전·기준 결과변수·임계값·프롬프트 버전이 하나라도 바뀌면 옛 판정을 버린다.
         ck = cache_key("judge", idea["id"], scope,
-                       [str(idea.get("novelty", "")), f"v{JUDGE_PROMPT_VERSION}", f"runs{JUDGE_RUNS}"], models)
+                       [str(idea.get("novelty", "")), cache_versions()], models)
         cached = reuse(prev.get(idea["id"]), ck)
         if cached:
             out[idea["id"]] = cached
@@ -135,23 +137,42 @@ def judge_all(ideas, pool, scope, period, panel, prev: dict) -> dict:
     return out
 
 
-VERDICT_ORDER = {"opportunity": 0, "structural": 1, "answered": 2}
+def check_prior_art(ideas, judgments, creds, prev: dict) -> dict:
+    """후보마다 PubMed 전체를 다시 검색한다.
 
-
-def passing(ideas, judgments) -> list:
-    """판정을 거부권이 아니라 정렬 기준으로 쓴다.
-
-    판정이 전부 structural로 나올 수 있고(실제로 그런 경우가 흔하다) 그때 고도화가
-    0건이 되면 앱이 비어버린다. 대신 기회로 판정된 것을 앞세우고, 같은 판정 안에서는
-    근거가 단단한 것을 먼저 고도화한다. 화면이 "추천 연구기회"와 "구조적 공백"으로
-    갈라진 뒤로는, 추천 쪽 카드가 AI 제안까지 갖춘 상태인 편이 쓸모 있다.
+    최근 12개월 코퍼스로는 "지금 비어 있다"까지만 말할 수 있다. 3년 전에 같은
+    연구가 이미 잘 수행됐는지는 더 긴 창으로 다시 봐야 안다. structural로 판정된
+    후보는 어차피 최종에서 빠지므로 검색하지 않는다 — 호출을 아낀다.
     """
-    def rank(pair):
-        index, idea = pair
-        judgment = judgments.get(idea["id"]) or {}
-        evidence = evidence_summary(judgment, idea.get("metrics")) or {}
-        return (VERDICT_ORDER.get(judgment.get("verdict"), 3), -evidence.get("score", 0), index)
-    return [idea for _, idea in sorted(enumerate(ideas), key=rank)][:AI_IDEA_LIMIT]
+    out = {}
+    for idea in ideas:
+        verdict = (judgments.get(idea["id"]) or {}).get("verdict")
+        if verdict in BLOCKED_VERDICTS:
+            continue
+        ck = cache_key("prior", idea["id"], str(config.PRIOR_ART_YEARS),
+                       [cache_versions()], "ncbi")
+        cached = reuse(prev.get(idea["id"]), ck)
+        if cached:
+            out[idea["id"]] = cached
+            continue
+        result = prior_art.check(idea, creds)
+        result["cacheKey"] = ck
+        out[idea["id"]] = result
+        if result.get("error"):
+            log(f"  선행연구 검색 실패 — {idea['id']}: {result['error']}")
+        else:
+            log(f"  선행연구 {result['matchCount']}편 (검색 {result['total']}건) — {idea['title'][:28]}…")
+    return out
+
+
+def _selection_summary(picked: dict) -> dict:
+    """스냅샷에는 아이디어 본문이 아니라 id만 담는다. 본문은 analysis.ideas에 이미 있다."""
+    return {"final": [i["id"] for i in picked["final"]],
+            "blocked": [i["id"] for i in picked["blocked"]],
+            "duplicates": [i["id"] for i in picked["duplicates"]],
+            "scores": picked["allScores"],
+            "distinctCategories": picked["distinctCategories"],
+            "shortOfTarget": picked["shortOfTarget"]}
 
 
 def suggest_all(ideas, pool, trends, period, scope, creds, key, model, prev: dict) -> dict:
@@ -203,6 +224,7 @@ def main(started: datetime):
     prev_trends = previous.get("trendReports") or {}
     prev_suggestions = previous.get("suggestions") or {}
     prev_judgments = previous.get("judgments") or {}
+    prev_prior = previous.get("priorArt") or {}
     now = datetime.now(timezone.utc).isoformat()
 
     run_ai, why = gemini_day(to, previous)
@@ -212,6 +234,7 @@ def main(started: datetime):
     if run_ai:
         log(f"Gemini 실행 — {why}")
         trend_reports, suggestions, judgments = {}, {}, {}
+        prior, selections = {}, {}
 
         def family_pool(fam):
             members = next((f["journals"] for f in analysis["families"] if f["key"] == fam), [])
@@ -238,12 +261,24 @@ def main(started: datetime):
         log(f"공백 판정 — 무릎 전체 (판정단 {', '.join(j.name for j in panel)} · 주 모델 {JUDGE_RUNS}회 반복)")
         judgments.update(judge_all(analysis["ideas"], analysis["articles"], "무릎 전체", period,
                                    panel, prev_judgments))
-        top = passing(analysis["ideas"], judgments)
         counts = collections.Counter((judgments.get(i["id"]) or {}).get("verdict", "실패")
                                      for i in analysis["ideas"])
-        log(f"판정 결과 {dict(counts)} → 상위 {len(top)}개 고도화")
-        suggestions.update(suggest_all(top, analysis["articles"], analysis["trends"],
+        log(f"판정 결과 {dict(counts)}")
+
+        log("선행연구 검증 — 무릎 전체 (PubMed 전체, 최근 %d년)" % config.PRIOR_ART_YEARS)
+        prior.update(check_prior_art(analysis["ideas"], judgments, creds, prev_prior))
+        for idea in analysis["ideas"]:
+            if idea["id"] in prior:
+                idea["priorArt"] = prior[idea["id"]]
+
+        picked = selection.select(analysis["ideas"], judgments)
+        selections["all"] = _selection_summary(picked)
+        log(f"최종 선정 {len(picked['final'])}개 "
+            f"(카테고리 {picked['distinctCategories']}종 · structural 차단 {len(picked['blocked'])} · "
+            f"중복 제거 {len(picked['duplicates'])})")
+        suggestions.update(suggest_all(picked["final"], analysis["articles"], analysis["trends"],
                                        period, "무릎 전체", creds, key, model, prev_suggestions))
+
         for fam, label in FAMILY_LABEL.items():
             fam_ideas = analysis["ideasByFamily"].get(fam) or []
             if not fam_ideas:
@@ -251,7 +286,15 @@ def main(started: datetime):
             pool = family_pool(fam)
             log(f"공백 판정 — {fam}")
             judgments.update(judge_all(fam_ideas, pool, label, period, panel, prev_judgments))
-            suggestions.update(suggest_all(passing(fam_ideas, judgments), pool,
+            fam_prior = check_prior_art(fam_ideas, judgments, creds, prev_prior)
+            prior.update(fam_prior)
+            for idea in fam_ideas:
+                if idea["id"] in prior:
+                    idea["priorArt"] = prior[idea["id"]]
+            fam_pick = selection.select(fam_ideas, judgments)
+            selections[fam] = _selection_summary(fam_pick)
+            log(f"최종 선정 {len(fam_pick['final'])}개 — {fam}")
+            suggestions.update(suggest_all(fam_pick["final"], pool,
                                            analysis["trendsByFamily"].get(fam, []),
                                            period, label, creds, key, model, prev_suggestions))
         ai_refreshed_at = now
@@ -259,18 +302,29 @@ def main(started: datetime):
         # 초록은 오늘 것으로 갱신하되, AI 결과는 지난 것을 그대로 들고 간다.
         log(f"Gemini 건너뜀 — {why}. 지난 AI 결과 {len(prev_suggestions)}건을 유지합니다.")
         trend_reports, suggestions, judgments = prev_trends, prev_suggestions, prev_judgments
+        prior, selections = prev_prior, previous.get("selections") or {}
+        # 선행연구 결과는 아이디어에 다시 붙여 준다. 앱은 스냅샷만 읽는다.
+        for idea in analysis["ideas"]:
+            if idea["id"] in prior:
+                idea["priorArt"] = prior[idea["id"]]
+        for fam_ideas in analysis["ideasByFamily"].values():
+            for idea in fam_ideas:
+                if idea["id"] in prior:
+                    idea["priorArt"] = prior[idea["id"]]
         ai_refreshed_at = previous.get("aiRefreshedAt") or previous.get("generatedAt")
 
     snapshot = {"generatedAt": now, "model": model if key else None,
                 "aiRefreshedAt": ai_refreshed_at, "aiRanToday": run_ai, "aiSkipReason": None if run_ai else why,
                 "familyLabels": FAMILY_LABEL, "trendReports": trend_reports, "suggestions": suggestions,
-                "judgments": judgments, "analysis": analysis}
+                "judgments": judgments, "priorArt": prior, "selections": selections,
+                "versions": cache_versions(), "analysis": analysis}
     out = SNAPSHOT
     out.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(snapshot, ensure_ascii=False)
     out.write_text(text + "\n", "utf-8")
     log(f"저장 완료: {out} ({len(text.encode()) / 1048576:.2f}MB)")
-    log(f"공백 판정 {len(judgments)}건, AI 제안 {len(suggestions)}건, 동향 분석 {len(trend_reports)}건 (오늘 Gemini 실행: {'예' if run_ai else '아니오'})")
+    log(f"공백 판정 {len(judgments)}건, 선행연구 {len(prior)}건, AI 제안 {len(suggestions)}건, "
+        f"동향 분석 {len(trend_reports)}건 (오늘 Gemini 실행: {'예' if run_ai else '아니오'})")
 
     failed = sum(1 for v in list(judgments.values()) + list(suggestions.values()) + list(trend_reports.values())
                  if isinstance(v, dict) and v.get("error"))
@@ -282,6 +336,7 @@ def main(started: datetime):
         "sizeMB": round(len(text.encode()) / 1048576, 2),
         "ai": {"ran": run_ai, "reason": why, "model": model if key else None,
                "judged": len(judgments), "suggested": len(suggestions), "trends": len(trend_reports),
+               "priorArt": len(prior), "final": len((selections.get("all") or {}).get("final") or []),
                "failed": failed},
         "error": None,
     })
