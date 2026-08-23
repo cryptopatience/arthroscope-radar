@@ -98,7 +98,9 @@ MIN_TREND_SHARE = 3
 MIN_IDEAS_FOR_SCOPE = 2
 PROSPECTIVE_DESIGNS = ("전향적 연구", "무작위시험")
 IDEA_MIN_POOL = 15
-IDEA_MAX = 4
+IDEA_MAX = 8
+IDEA_PER_KIND = 4       # 같은 종류(outcome·design·joint·intersection)를 몇 개까지 뽑을지
+IDEA_PER_LEAD = 2       # 같은 주제를 몇 개까지 뽑을지
 GAP_RATIO = 0.35
 
 
@@ -487,12 +489,12 @@ def generate_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea]:
                 tags=[first.label, second.label, "교차 공백"],
             )))
 
-    # 분산: 같은 종류 2개, 같은 주제 2개까지.
+    # 분산: 한쪽 종류나 한 주제가 목록을 독식하지 않도록 상한을 둔다.
     chosen: list[Idea] = []
     kind_used: dict[str, int] = {}
     lead_used: dict[str, int] = {}
     for strength, kind, lead, idea in sorted(candidates, key=lambda c: -c[0]):
-        if kind_used.get(kind, 0) >= 2 or lead_used.get(lead, 0) >= 2:
+        if kind_used.get(kind, 0) >= IDEA_PER_KIND or lead_used.get(lead, 0) >= IDEA_PER_LEAD:
             continue
         chosen.append(idea)
         kind_used[kind] = kind_used.get(kind, 0) + 1

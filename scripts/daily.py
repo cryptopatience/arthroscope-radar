@@ -24,6 +24,8 @@ FAMILY_LABEL = {
 }
 MONTHS_BACK = 12
 IDEA_ABSTRACTS = 32
+AI_IDEA_LIMIT = 4       # 규칙 기반 아이디어는 8개를 다 보여주되, Gemini 고도화는 점수 상위 이만큼만.
+                        # 나머지는 앱에서 "AI로 고도화" 버튼으로 필요할 때 개별 호출한다.
 TREND_ABSTRACTS = 30
 GEMINI_WEEKDAY = 4      # 0=월 … 4=금. 초록 수집은 매일, Gemini 분석은 이 요일에만.
 SNAPSHOT = Path("data/daily.json")
@@ -149,10 +151,12 @@ def main():
                 trend_reports[fam] = {"error": str(error) or "동향 분석 실패"}
                 log(f"동향 분석 실패 — {fam}: {error}")
 
-        suggestions.update(suggest_all(analysis["ideas"], analysis["articles"], analysis["trends"],
+        top = analysis["ideas"][:AI_IDEA_LIMIT]   # ideas는 신호 강한 순으로 정렬돼 있다
+        log(f"아이디어 {len(analysis['ideas'])}개 중 상위 {len(top)}개만 고도화합니다.")
+        suggestions.update(suggest_all(top, analysis["articles"], analysis["trends"],
                                        period, "무릎 전체", creds, key, model, prev_suggestions))
         for fam, label in FAMILY_LABEL.items():
-            ideas = analysis["ideasByFamily"].get(fam) or []
+            ideas = (analysis["ideasByFamily"].get(fam) or [])[:AI_IDEA_LIMIT]
             if not ideas:
                 continue
             suggestions.update(suggest_all(ideas, family_pool(fam), analysis["trendsByFamily"].get(fam, []),
