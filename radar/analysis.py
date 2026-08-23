@@ -18,7 +18,7 @@ from .ncbi import EUTILS, NcbiCredentials, decode_xml, fetch_ncbi_text, ncbi_par
 from .vocabulary import (ACCURACY_TERMS, DIRECT_COMPARISON_TERMS, EXTERNAL_VALIDATION_TERMS,
                          LONGTERM_TERMS, PATIENT_OUTCOME_TERMS, PROM_CLINICAL_INTERPRETATION,
                          PROM_INSTRUMENTS, PROM_MEASUREMENT_ERROR, PROM_GAP_HARD_BLOCK,
-                         PROM_GAP_NEEDS_STRONG, TECHNOLOGY_CLUSTERS, canonical)
+                         PROM_GAP_NEEDS_STRONG, TECHNOLOGY_CLUSTERS, canonical, longterm_outcomes)
 
 # ---------------------------------------------------------------------------
 # 저널·계열·주제 정의
@@ -766,19 +766,22 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
                 metrics=m))
 
         # --- D5. 장기 결과 공백 (longterm_durability) ------------------------
+        # 1차 결과변수를 그대로 쓰면 "5년 시점의 재원기간" 같은 문장이 나온다.
+        # 재원기간·당일 퇴원·정렬 정확도는 수술 당시 한 번 재는 지표라 장기 질문의
+        # 결과변수가 될 수 없다. 그 분야의 지속 가능한 지표를 따로 가져온다.
+        durable = longterm_outcomes(cluster)
         m = _gap_metrics(pool, rest, lambda a: _has(a, "longterm"), stamps, midpoint)
-        if _passes(m):
+        if durable and _passes(m):
             add(m["z"] * gw, "longterm", cluster, None, _idea(
                 cluster, "longterm_followup", "longterm_durability", "longterm",
                 title=f"{cluster}의 초기 결과는 5년 뒤에도 유지되는가?",
                 rationale=(f"{cluster} {len(pool)}편 중 장기 추적·생존분석을 보고한 초록은 {m['observed']}편"
                            f"({_pct(m['ratio'])}%)으로, 나머지 문헌의 {_pct(m['baseline'])}%보다 "
-                           f"{m['z']:.1f}표준편차 낮습니다. 이 분야의 1차 결과인 "
-                           f"{_primary(spec, '주요 결과', 3)}가 단기에 좋다는 것이 5년 뒤에도 좋다는 뜻은 아닙니다."),
-                pico=f"{cluster} 환자에서, 최소 5년 추적 시 {_primary(spec, '초기 결과', 3)} 유지 여부와 "
-                     "후기 악화의 시점·원인 평가",
-                design="기존 코호트의 장기 연장 추적 또는 등록자료 생존분석",
-                primaryEndpoint=f"5년 시점의 {_primary(spec, '1차 결과', 3)} 및 후기 악화까지의 기간",
+                           f"{m['z']:.1f}표준편차 낮습니다. 단기에 좋다는 것이 5년 뒤에도 좋다는 뜻은 아닙니다. "
+                           f"이 분야에서 장기적으로 물을 수 있는 지표는 {'·'.join(durable[:3])}입니다."),
+                pico=f"{cluster} 대상 환자에서, 최소 5년 추적 시 {'·'.join(durable[:2])} 평가",
+                design=spec.get("longtermDesign") or "기존 코호트의 장기 연장 추적 또는 등록자료 생존분석",
+                primaryEndpoint=f"5년 시점의 {'·'.join(durable[:2])}",
                 novelty=_clamp(3 + m["z"] / 3), feasibility=3,
                 evidence=_pick_evidence(pool), tags=[cluster, "장기 추적", "장기결과 공백"],
                 metrics=m))

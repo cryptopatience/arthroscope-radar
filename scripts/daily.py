@@ -146,7 +146,7 @@ def check_prior_art(ideas, judgments, creds, prev: dict) -> dict:
     """
     out = {}
     for idea in ideas:
-        verdict = (judgments.get(idea["id"]) or {}).get("verdict")
+        verdict = ((judgments or {}).get(idea["id"]) or {}).get("verdict")
         if verdict in BLOCKED_VERDICTS:
             continue
         ck = cache_key("prior", idea["id"], str(config.PRIOR_ART_YEARS),
@@ -231,10 +231,23 @@ def main(started: datetime):
     if not key:
         run_ai, why = False, "GEMINI_API_KEY 없음"
 
+    # 선행연구 검증은 NCBI만 쓰므로 Gemini 실행 여부와 무관하게 돈다. 유료 단계에
+    # 묶어 두면 GEMINI_SKIP=1로 무료 확인을 할 때 독창성 축이 통째로 비어 버린다.
+    # 지난 판정에서 structural이던 후보는 건너뛴다 — 어차피 최종에 못 온다.
+    prior = {}
+    log(f"선행연구 검증 (PubMed 전체, 최근 {config.PRIOR_ART_YEARS}년)")
+    prior.update(check_prior_art(analysis["ideas"], prev_judgments, creds, prev_prior))
+    for fam_ideas in analysis["ideasByFamily"].values():
+        prior.update(check_prior_art(fam_ideas, prev_judgments, creds, prev_prior))
+    for group in [analysis["ideas"], *analysis["ideasByFamily"].values()]:
+        for idea in group:
+            if idea["id"] in prior:
+                idea["priorArt"] = prior[idea["id"]]
+
     if run_ai:
         log(f"Gemini 실행 — {why}")
         trend_reports, suggestions, judgments = {}, {}, {}
-        prior, selections = {}, {}
+        selections = {}
 
         def family_pool(fam):
             members = next((f["journals"] for f in analysis["families"] if f["key"] == fam), [])
@@ -265,12 +278,6 @@ def main(started: datetime):
                                      for i in analysis["ideas"])
         log(f"판정 결과 {dict(counts)}")
 
-        log("선행연구 검증 — 무릎 전체 (PubMed 전체, 최근 %d년)" % config.PRIOR_ART_YEARS)
-        prior.update(check_prior_art(analysis["ideas"], judgments, creds, prev_prior))
-        for idea in analysis["ideas"]:
-            if idea["id"] in prior:
-                idea["priorArt"] = prior[idea["id"]]
-
         picked = selection.select(analysis["ideas"], judgments)
         selections["all"] = _selection_summary(picked)
         log(f"최종 선정 {len(picked['final'])}개 "
@@ -286,11 +293,6 @@ def main(started: datetime):
             pool = family_pool(fam)
             log(f"공백 판정 — {fam}")
             judgments.update(judge_all(fam_ideas, pool, label, period, panel, prev_judgments))
-            fam_prior = check_prior_art(fam_ideas, judgments, creds, prev_prior)
-            prior.update(fam_prior)
-            for idea in fam_ideas:
-                if idea["id"] in prior:
-                    idea["priorArt"] = prior[idea["id"]]
             fam_pick = selection.select(fam_ideas, judgments)
             selections[fam] = _selection_summary(fam_pick)
             log(f"최종 선정 {len(fam_pick['final'])}개 — {fam}")
@@ -302,15 +304,7 @@ def main(started: datetime):
         # 초록은 오늘 것으로 갱신하되, AI 결과는 지난 것을 그대로 들고 간다.
         log(f"Gemini 건너뜀 — {why}. 지난 AI 결과 {len(prev_suggestions)}건을 유지합니다.")
         trend_reports, suggestions, judgments = prev_trends, prev_suggestions, prev_judgments
-        prior, selections = prev_prior, previous.get("selections") or {}
-        # 선행연구 결과는 아이디어에 다시 붙여 준다. 앱은 스냅샷만 읽는다.
-        for idea in analysis["ideas"]:
-            if idea["id"] in prior:
-                idea["priorArt"] = prior[idea["id"]]
-        for fam_ideas in analysis["ideasByFamily"].values():
-            for idea in fam_ideas:
-                if idea["id"] in prior:
-                    idea["priorArt"] = prior[idea["id"]]
+        selections = previous.get("selections") or {}
         ai_refreshed_at = previous.get("aiRefreshedAt") or previous.get("generatedAt")
 
     snapshot = {"generatedAt": now, "model": model if key else None,

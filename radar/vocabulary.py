@@ -12,7 +12,7 @@ from __future__ import annotations
 # 용어 사전을 고치면 올린다.
 KEYWORD_DICT_VERSION = "1"
 # 분야별 기준 결과변수(CANONICAL_OUTCOMES)를 고치면 올린다.
-CANONICAL_OUTCOME_VERSION = "2"
+CANONICAL_OUTCOME_VERSION = "4"
 
 
 # ---------------------------------------------------------------------------
@@ -110,6 +110,7 @@ GAP_CATEGORY_ORDER = list(GAP_CATEGORIES)
 #
 # reviewed=False는 전문가 확인을 아직 받지 않은 잠정값이라는 뜻이다.
 # 화면과 보고서에 그렇게 표시하고, 판정에서도 보수적으로 다룬다.
+# 2026-08-23 기준 16개 전부 확인 완료. 새 주제를 추가할 때는 False로 두고 시작한다.
 # ---------------------------------------------------------------------------
 
 CANONICAL_OUTCOMES = {
@@ -123,64 +124,110 @@ CANONICAL_OUTCOMES = {
     },
     "로봇·내비게이션": {
         "primary": ["정렬 정확도", "outlier 비율", "합병증", "수술 효율"],
+        # 정확도·수술 효율은 한 시점 지표라 장기 질문의 결과변수가 될 수 없다.
+        "longterm": ["임플란트 생존", "누적 재수술", "후기 이완·migration"],
         "prom_role": "contextual", "reviewed": True,
     },
     "정렬·생체역학": {
         "primary": ["정렬 정확도", "outlier 비율", "합병증", "수술 효율"],
+        "longterm": ["임플란트 생존", "누적 재수술", "후기 이완·migration"],
         "prom_role": "contextual", "reviewed": True,
     },
     "AI·예측": {
         "primary": ["discrimination (AUC)", "calibration", "external validation", "clinical utility"],
+        # 모델 성능 지표는 시점 지표다. 장기 질문은 성능이 시간에 따라 유지되는지를 묻는다.
+        "longterm": ["성능 유지(temporal validation)", "임상 결과 예측력"],
         "prom_role": "contextual", "reviewed": True,
     },
     "형평성": {
         "primary": ["치료 접근성", "치료 격차", "회복 격차"],
+        # 접근성 격차의 5년 변화(반복 단면)와 수술 후 장기 회복 격차(종단 코호트)는
+        # 설계가 다른 별개 질문이다. 한 카드에서 섞지 않는다. 이 코퍼스는 수술 문헌이므로
+        # 종단 코호트 쪽을 잡는다.
+        "longterm": ["집단 간 회복 격차 (PROM·기능 궤적 차이)"],
+        "longtermDesign": "수술받은 환자의 종단 코호트 (집단 간 회복 궤적 비교)",
         "prom_role": "primary", "reviewed": True,
     },
     "환자요인": {
         "primary": ["위험도", "회복", "합병증", "PROM"],
         "prom_role": "contextual", "reviewed": True,
     },
-    # --- 아래는 전문가 확인 전 잠정값 ---
     "재수술·합병증": {
-        "primary": ["재수술률", "합병증률", "임플란트 생존"],
-        "prom_role": "secondary", "reviewed": False,
+        # 클러스터가 이차적이라는 뜻이 아니라, 이 분야에서 PROM이 이차적이라는 뜻이다.
+        "primary": ["재수술·재치환 발생률", "revision-free survival", "합병증률",
+                    "원인별 실패", "implant survival"],
+        "prom_role": "secondary", "reviewed": True,
     },
     "PROM·기대치": {
-        "primary": ["PROM 변화", "MCID 달성", "PASS 달성"],
-        "prom_role": "primary", "reviewed": False,
+        "primary": ["PROM 변화", "기대-결과 불일치", "기대 충족률", "만족도",
+                    "MCID/SCB/PASS 달성률"],
+        "longterm": ["PROM 유지", "만족도 유지"],
+        "prom_role": "primary", "reviewed": True,
     },
     "외래·회복": {
-        "primary": ["재원기간", "재입원", "합병증", "회복 속도"],
-        "prom_role": "primary", "reviewed": False,
+        "primary": ["당일 퇴원 성공·실패", "재원기간", "응급실 방문",
+                    "30/90일 재입원·합병증", "기능회복 시간"],
+        # 재원기간·당일 퇴원은 수술 당시 한 번 재는 지표다. 5년 질문에는 누적 지표를 쓴다.
+        "longterm": ["누적 재입원·재수술·합병증", "PROM 유지"],
+        "prom_role": "secondary", "reviewed": True,
     },
     "비용·보건정책": {
-        "primary": ["비용", "자원 사용", "비용효과비"],
-        "prom_role": "contextual", "reviewed": False,
+        "primary": ["직접·간접비용", "의료자원 이용", "QALY", "ICER", "접근성·이용률"],
+        "longterm": ["누적 의료비·자원 사용", "QALY", "비용효과(ICER)"],
+        "prom_role": "contextual", "reviewed": True,
     },
     "임플란트·기술": {
-        "primary": ["임플란트 생존", "고정 실패", "마모"],
-        "prom_role": "primary", "reviewed": False,
+        "primary": ["implant survival", "revision", "방사선학적 이완·migration",
+                    "정확도", "기기 관련 이상반응"],
+        "longterm": ["implant survival", "누적 revision", "방사선학적 이완·migration"],
+        "prom_role": "secondary", "reviewed": True,
     },
     "스포츠 복귀": {
-        "primary": ["복귀율", "복귀까지 기간", "재손상률"],
-        "prom_role": "primary", "reviewed": False,
+        "primary": ["복귀율", "복귀까지 시간", "이전 수준 복귀율", "활동 수준",
+                    "복귀 유지", "재손상"],
+        "longterm": ["복귀 유지율", "재손상률", "활동 수준 유지"],
+        "prom_role": "secondary", "reviewed": True,
     },
     "연골·생물학": {
-        "primary": ["연골 재생", "구조적 치유", "재수술"],
-        "prom_role": "primary", "reviewed": False,
+        "primary": ["통증·기능 PROM", "치료 실패·재수술", "MRI 구조적 회복", "부작용"],
+        "longterm": ["치료 실패·재수술", "MRI 구조적 회복 유지", "통증·기능 PROM 유지"],
+        "prom_role": "primary", "reviewed": True,
     },
     "전방십자인대·반월상": {
-        "primary": ["이식건 실패", "재파열", "복귀율"],
-        "prom_role": "primary", "reviewed": False,
+        # PROM만으로 부족하다. 안정성·재수술·복귀가 함께 있어야 한다.
+        "primary": ["IKDC/KOOS", "graft·repair failure", "재수술", "안정성",
+                    "근력·기능검사", "스포츠 복귀"],
+        "longterm": ["graft·repair failure", "누적 재수술", "관절염 진행", "복귀 유지"],
+        "prom_role": "primary", "reviewed": True,
     },
     "회전근개·어깨": {
-        "primary": ["재파열", "건 치유", "기능 회복"],
-        "prom_role": "primary", "reviewed": False,
+        # PROM과 구조적 치유는 서로 대체되지 않는다. 분리해 둔다.
+        "primary": ["ASES/WORC/SSV 통증·기능", "재파열", "근력·ROM", "재수술·합병증"],
+        "longterm": ["재파열", "누적 재수술", "통증·기능 유지"],
+        "prom_role": "primary", "reviewed": True,
     },
 }
 
-# 생성 자체를 막는 것은 여기뿐이다.
+# 장기 질문에 쓸 수 없는 결과변수. 한 시점에서만 재는 지표라 "5년 시점의 재원기간"
+# 같은 말이 안 되는 문장이 나온다. longterm 값에는 기간을 넣지 않는다 —
+# 기간은 템플릿이 붙이므로 "5년 시점의 5년 누적…"처럼 겹친다. longterm 키가 없는 클러스터는 primary에서
+# 이것들을 걸러 쓰고, 걸러서 아무것도 안 남으면 장기 공백을 만들지 않는다.
+LONGTERM_INCOMPATIBLE = (
+    "재원기간", "당일 퇴원", "응급실 방문", "수술 효율", "수술 시간", "출혈",
+    "정확도", "outlier", "calibration", "discrimination", "external validation",
+    "기능회복 시간", "접근성·이용률",
+)
+
+
+def longterm_outcomes(topic: str) -> list[str]:
+    """장기 질문에 쓸 결과변수. 명시가 없으면 primary에서 시점 지표를 걸러 쓴다."""
+    spec = canonical(topic)
+    if spec.get("longterm"):
+        return list(spec["longterm"])
+    return [o for o in (spec.get("primary") or [])
+            if not any(bad in o for bad in LONGTERM_INCOMPATIBLE)]
+
+
 PROM_GAP_HARD_BLOCK = {"not_applicable"}
 # 이 역할에서는 근거가 강할 때만 후보로 올린다(표본 충분 + 효과크기 중간 이상).
 PROM_GAP_NEEDS_STRONG = {"contextual"}
