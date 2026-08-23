@@ -30,7 +30,8 @@ from radar.analysis import JOURNAL_ORDER, JOURNALS, run_analysis  # noqa: E402
 from radar.gemini import (GEMINI_DEFAULT_MODEL, ENHANCE_MIN, enhance_idea,  # noqa: E402
                           family_trend_report, pmids_for_idea)
 from radar.judge import (BLOCKED_VERDICTS, JUDGE_PROMPT_VERSION, JUDGE_RUNS, build_panel,  # noqa: E402
-                         cache_versions, evidence_summary, judge_panel, titles_for_idea)
+                         cache_versions, evidence_summary, judge_panel, judgment_cache_key,
+                         titles_for_idea)
 from radar.ncbi import NcbiCredentials  # noqa: E402
 from radar import prior_art, selection  # noqa: E402
 
@@ -86,23 +87,30 @@ def save_corpus(analysis: dict) -> dict:
          for a in analysis["articles"]),
         key=lambda r: r["pmid"])
     blob = _canonical(records).encode("utf-8")
+    digest = _sha256(records)
     CORPUS_DIR.mkdir(parents=True, exist_ok=True)
-    path = CORPUS_DIR / f"corpus-{analysis['dateTo']}.json.gz"
+    # 파일명에 내용 해시를 넣어 불변으로 만든다. 날짜만 쓰면 같은 날 다시 돌릴 때
+    # 앞선 실행의 입력을 덮어써 재현이 불가능해진다.
+    stamp = analysis["dateTo"].replace("-", "")
+    name = f"corpus-{stamp}-{digest.split(':')[1][:8]}.json.gz"
+    path = CORPUS_DIR / name
     with gzip.open(path, "wb", compresslevel=9) as handle:
         handle.write(blob)
     packed = path.stat().st_size
+    tag = f"corpus-{stamp}"
     log(f"코퍼스 원본 저장: {path} ({packed / 1048576:.2f}MB 압축 / {len(blob) / 1048576:.2f}MB 원본)")
-    log(f"  Release 자산으로 올리려면:  gh release upload <tag> {path}")
-    return {"path": str(path).replace("\\", "/"), "sha256": _sha256(records),
-            "bytes": packed, "rawBytes": len(blob), "records": len(records),
-            "committed": False,
-            "note": "저장소에 커밋하지 않습니다. 백테스트·논문화를 위해 Release 자산으로 보관하세요."}
+    log(f"  Release 자산으로 올리려면:  gh release upload {tag} {path}")
+    return {"assetName": name, "releaseTag": tag, "path": str(path).replace("\\", "/"),
+            "sha256": digest, "sizeBytes": packed, "rawBytes": len(blob),
+            "records": len(records), "uploaded": False,
+            "note": "저장소에 커밋하지 않습니다. 백테스트·논문화를 위해 Release 자산으로 올리고 uploaded를 true로 바꾸세요."}
 
 
 def write_manifest(analysis: dict, judgments: dict, prior: dict, selections: dict,
                    model: str, panel_models: list[str], run_ai: bool):
     """재현성 manifest. 무엇으로 언제 어떤 규칙으로 만든 결과인지 한 파일에 남긴다."""
     from radar import config
+    from radar.judge import JUDGE_SCHEMA_VERSION
     from radar.vocabulary import CANONICAL_OUTCOME_VERSION, KEYWORD_DICT_VERSION
     thresholds = {name: getattr(config, name) for name in dir(config)
                   if name.isupper() and isinstance(getattr(config, name), (int, float, str))}
@@ -128,7 +136,11 @@ def write_manifest(analysis: dict, judgments: dict, prior: dict, selections: dic
         "dictionaryVersion": KEYWORD_DICT_VERSION,
         "canonicalOutcomeVersion": CANONICAL_OUTCOME_VERSION,
         "promptVersion": JUDGE_PROMPT_VERSION,
+        "judgmentSchemaVersion": JUDGE_SCHEMA_VERSION,
         "modelVersion": {"primary": model, "panel": panel_models, "judgeRuns": JUDGE_RUNS},
+        # 판정마다 어떤 입력으로 나왔는지. 다음 실행의 캐시 판단 근거이자 감사 흔적이다.
+        "judgmentInputHashes": {k: v.get("judgmentInputHash") for k, v in judgments.items()
+                                if isinstance(v, dict)},
         "geminiRan": run_ai,
         "rawJudgmentsSaved": bool(judgments),
         "counts": {"articles": analysis["analyzed"], "candidates": len(analysis["ideas"]),
@@ -274,19 +286,19 @@ def judge_all(ideas, pool, scope, period, panel, prev: dict) -> dict:
     "모델 간 합의"를 만드는 유일한 재료다.
     """
     out = {}
-    models = "+".join(j.name for j in panel)
+    reused = 0
     for idea in ideas:
-        # 판정은 특정 초록이 아니라 주제 자체에 대한 것이므로 PMID 집합으로 캐싱하지 않는다.
-        # novelty는 z에서 파생되므로, 공백 크기가 실질적으로 변하면 키가 바뀐다.
-        # 사전·기준 결과변수·임계값·프롬프트 버전이 하나라도 바뀌면 옛 판정을 버린다.
-        ck = cache_key("judge", idea["id"], scope,
-                       [str(idea.get("novelty", "")), cache_versions()], models)
+        # 버전 문자열이 같다는 것만으로 재사용하면 안 된다. Gemini에게 실제로 전달된
+        # 입력(클러스터 통계·canonical·대표 논문 제목·범위)이 같아야 같은 판정이다.
+        titles = titles_for_idea(idea, pool)
+        ck = judgment_cache_key(idea, scope, period, titles, panel)
         cached = reuse(prev.get(idea["id"]), ck)
         if cached:
             out[idea["id"]] = cached
+            reused += 1
             continue
         try:
-            verdict = judge_panel(idea, titles_for_idea(idea, pool), scope, period, panel)
+            verdict = judge_panel(idea, titles, scope, period, panel)
             verdict["cacheKey"] = ck
             out[idea["id"]] = verdict
             evidence = evidence_summary(verdict, idea.get("metrics")) or {}
@@ -295,6 +307,8 @@ def judge_all(ideas, pool, scope, period, panel, prev: dict) -> dict:
         except Exception as error:
             out[idea["id"]] = {"error": str(error) or "판정 실패"}
             log(f"  판정 실패 — {scope}: {error}")
+    if reused:
+        log(f"  판정 캐시 재사용 {reused}건 (입력 해시 일치) — {scope}")
     return out
 
 

@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import collections
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -33,6 +34,8 @@ JUDGE_TITLES = 12
 JUDGE_PROMPT_VERSION = "6"
 # 안정성 측정 반복 수. 홀수여야 동률이 덜 생긴다.
 JUDGE_RUNS = 5
+# JUDGE_SCHEMA를 고치면 올린다. 같은 프롬프트라도 응답 구조가 달라지면 다른 판정이다.
+JUDGE_SCHEMA_VERSION = "1"
 # 교차 검증용 두 번째 Gemini 모델. 같은 회사지만 크기·학습이 달라 판정이 실제로 갈린다.
 GEMINI_SECOND_MODEL = "gemini-2.5-flash"
 OPENAI_DEFAULT_MODEL = "gpt-4o"
@@ -100,6 +103,54 @@ def call_openai(api_key: str, model: str, prompt: str, schema: dict) -> dict:
         return json.loads(text)
     except json.JSONDecodeError:
         raise RuntimeError("OpenAI 응답을 해석하지 못했습니다.")
+
+
+def judgment_input(idea: dict, scope: str, period: str, titles: list[str]) -> dict:
+    """Gemini에게 실제로 전달되는 것 전부. 캐시 재사용 판단의 근거다.
+
+    버전 문자열만 비교하면 부족하다. 사전을 안 고쳐도 클러스터 통계가 움직이거나
+    canonical 하위유형이 다르게 잡히면 프롬프트가 달라진다. 그때 옛 판정을 재사용하면
+    "이 입력으로 이 판정이 나왔다"가 거짓이 된다.
+    """
+    spec = idea.get("canonical") or {}
+    metrics = idea.get("metrics") or {}
+    return {
+        "clusterId": idea.get("clusterId", ""),
+        "gapId": idea.get("gapId", ""),
+        "gapCategory": idea.get("gapCategory", ""),
+        "gapSubtype": idea.get("gapSubtype", ""),
+        "canonicalOutcome": {"primary": list(spec.get("primary") or []),
+                             "reviewed": bool(spec.get("reviewed")),
+                             "subtypeNote": spec.get("subtypeNote", "")},
+        "promRole": spec.get("prom_role", ""),
+        "title": idea.get("title", ""),
+        "rationale": idea.get("rationale", ""),
+        "clusterStatistics": {key: metrics.get(key) for key in
+                              ("n", "observed", "ratio", "baseline", "z", "effectSize", "sufficiency")},
+        "evidencePmids": sorted(str(e.get("pmid", "")) for e in (idea.get("evidence") or [])),
+        "representativeTitles": list(titles[:JUDGE_TITLES]),
+        "scope": scope,
+        "period": period,
+    }
+
+
+def _canonical_json(payload) -> str:
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def judgment_input_hash(payload: dict) -> str:
+    return "sha256:" + hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
+
+
+def judgment_cache_key(idea: dict, scope: str, period: str, titles: list[str],
+                       panel: list["Judge"]) -> str:
+    """이 네 가지가 모두 같을 때만 옛 판정을 재사용한다."""
+    return judgment_input_hash({
+        "modelVersion": [j.name for j in panel] + [f"runs{JUDGE_RUNS}"],
+        "promptVersion": JUDGE_PROMPT_VERSION,
+        "judgmentSchemaVersion": JUDGE_SCHEMA_VERSION,
+        "judgmentInputHash": judgment_input_hash(judgment_input(idea, scope, period, titles)),
+    })
 
 
 def cache_versions() -> str:
@@ -228,8 +279,14 @@ def judge_panel(idea: dict, titles: list[str], scope: str, period: str, panel: l
     voted = [o for o in others if o.get("verdict")]
     consensus = ("single" if not voted else
                  "agree" if all(o["verdict"] == verdict for o in voted) else "split")
+    payload = judgment_input(idea, scope, period, titles[:JUDGE_TITLES])
     return {
         "model": primary.name,
+        # 무엇을 보고 이 판정을 냈는지 함께 남긴다. 다음 실행이 이것으로 재사용을 판단한다.
+        "judgmentInput": payload,
+        "judgmentInputHash": judgment_input_hash(payload),
+        "promptVersion": JUDGE_PROMPT_VERSION,
+        "judgmentSchemaVersion": JUDGE_SCHEMA_VERSION,
         "verdict": verdict,
         "reason": lead["reason"],
         "fieldStandard": lead["fieldStandard"],
