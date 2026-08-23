@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import collections
 import hashlib
 import json
 import os
@@ -15,7 +16,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from radar.analysis import JOURNAL_ORDER, JOURNALS, run_analysis  # noqa: E402
-from radar.gemini import GEMINI_DEFAULT_MODEL, ENHANCE_MIN, enhance_idea, family_trend_report, pmids_for_idea  # noqa: E402
+from radar.gemini import (GEMINI_DEFAULT_MODEL, ENHANCE_MIN, enhance_idea, family_trend_report,  # noqa: E402
+                          judge_gap, JUDGE_PROMPT_VERSION, pmids_for_idea, titles_for_idea)
 from radar.ncbi import NcbiCredentials  # noqa: E402
 
 FAMILY_LABEL = {
@@ -24,8 +26,9 @@ FAMILY_LABEL = {
 }
 MONTHS_BACK = 12
 IDEA_ABSTRACTS = 32
-AI_IDEA_LIMIT = 4       # 규칙 기반 아이디어는 8개를 다 보여주되, Gemini 고도화는 점수 상위 이만큼만.
+AI_IDEA_LIMIT = 4       # 규칙 기반 아이디어는 8개를 다 보여주되, Gemini 고도화는 이만큼만.
                         # 나머지는 앱에서 "AI로 고도화" 버튼으로 필요할 때 개별 호출한다.
+                        # 고도화 대상은 "점수 상위"가 아니라 "판정을 통과한 것 중 상위"다.
 TREND_ABSTRACTS = 30
 GEMINI_WEEKDAY = 4      # 0=월 … 4=금. 초록 수집은 매일, Gemini 분석은 이 요일에만.
 SNAPSHOT = Path("data/daily.json")
@@ -70,6 +73,52 @@ def gemini_day(today: date, previous: dict) -> tuple[bool, str]:
     if today.weekday() == GEMINI_WEEKDAY:
         return True, "금요일 정기 갱신"
     return False, f"{'월화수목금토일'[today.weekday()]}요일 — 지난 결과 재사용"
+
+
+def judge_all(ideas, pool, scope, period, key, model, prev: dict) -> dict:
+    """공백이 실제 기회인지 분야 특성인지 먼저 거른다.
+
+    3년치 백테스트에서 공백 수준의 연도간 상관이 0.9를 넘었다. 즉 대부분의 공백은
+    채워질 빈칸이 아니라 그 분야의 고정된 특성이다. 통계로는 이 둘을 구분할 수 없어
+    임상 지식이 필요하고, 그래서 고도화 앞에 판정 단계를 둔다.
+    """
+    out = {}
+    for idea in ideas:
+        # 판정은 특정 초록이 아니라 주제 자체에 대한 것이므로 PMID 집합으로 캐싱하지 않는다.
+        # novelty는 z에서 파생되므로, 공백 크기가 실질적으로 변하면 키가 바뀐다.
+        ck = cache_key("judge", idea["id"], scope,
+                       [str(idea.get("novelty", "")), f"v{JUDGE_PROMPT_VERSION}"], model)
+        cached = reuse(prev.get(idea["id"]), ck)
+        if cached:
+            out[idea["id"]] = cached
+            continue
+        try:
+            verdict = judge_gap(idea, titles_for_idea(idea, pool), scope, period, key, model)
+            verdict["cacheKey"] = ck
+            out[idea["id"]] = verdict
+            log(f"  판정 {verdict['verdict']}(확신 {verdict['confidence']}) — {idea['title'][:30]}…")
+        except Exception as error:
+            out[idea["id"]] = {"error": str(error) or "판정 실패"}
+            log(f"  판정 실패 — {scope}: {error}")
+    return out
+
+
+VERDICT_ORDER = {"opportunity": 0, "structural": 1, "answered": 2}
+
+
+def passing(ideas, judgments) -> list:
+    """판정을 거부권이 아니라 정렬 기준으로 쓴다.
+
+    판정이 전부 structural로 나올 수 있고(실제로 그런 경우가 흔하다) 그때 고도화가
+    0건이 되면 앱이 비어버린다. 대신 기회로 판정된 것을 앞세우고, 같은 판정 안에서는
+    확신이 낮은 것(= 오판 가능성이 큰 것)을 먼저, 그 다음 원래 신호 순서를 따른다.
+    """
+    def rank(pair):
+        index, idea = pair
+        verdict = judgments.get(idea["id"]) or {}
+        return (VERDICT_ORDER.get(verdict.get("verdict"), 3),
+                verdict.get("confidence", 3), index)
+    return [idea for _, idea in sorted(enumerate(ideas), key=rank)][:AI_IDEA_LIMIT]
 
 
 def suggest_all(ideas, pool, trends, period, scope, creds, key, model, prev: dict) -> dict:
@@ -119,6 +168,7 @@ def main():
     period = f"{date_from}–{date_to}"
     prev_trends = previous.get("trendReports") or {}
     prev_suggestions = previous.get("suggestions") or {}
+    prev_judgments = previous.get("judgments") or {}
     now = datetime.now(timezone.utc).isoformat()
 
     run_ai, why = gemini_day(to, previous)
@@ -127,7 +177,7 @@ def main():
 
     if run_ai:
         log(f"Gemini 실행 — {why}")
-        trend_reports, suggestions = {}, {}
+        trend_reports, suggestions, judgments = {}, {}, {}
 
         def family_pool(fam):
             members = next((f["journals"] for f in analysis["families"] if f["key"] == fam), [])
@@ -151,32 +201,42 @@ def main():
                 trend_reports[fam] = {"error": str(error) or "동향 분석 실패"}
                 log(f"동향 분석 실패 — {fam}: {error}")
 
-        top = analysis["ideas"][:AI_IDEA_LIMIT]   # ideas는 신호 강한 순으로 정렬돼 있다
-        log(f"아이디어 {len(analysis['ideas'])}개 중 상위 {len(top)}개만 고도화합니다.")
+        log("공백 판정 — 무릎 전체")
+        judgments.update(judge_all(analysis["ideas"], analysis["articles"], "무릎 전체", period,
+                                   key, model, prev_judgments))
+        top = passing(analysis["ideas"], judgments)
+        counts = collections.Counter((judgments.get(i["id"]) or {}).get("verdict", "실패")
+                                     for i in analysis["ideas"])
+        log(f"판정 결과 {dict(counts)} → 상위 {len(top)}개 고도화")
         suggestions.update(suggest_all(top, analysis["articles"], analysis["trends"],
                                        period, "무릎 전체", creds, key, model, prev_suggestions))
         for fam, label in FAMILY_LABEL.items():
-            ideas = (analysis["ideasByFamily"].get(fam) or [])[:AI_IDEA_LIMIT]
-            if not ideas:
+            fam_ideas = analysis["ideasByFamily"].get(fam) or []
+            if not fam_ideas:
                 continue
-            suggestions.update(suggest_all(ideas, family_pool(fam), analysis["trendsByFamily"].get(fam, []),
+            pool = family_pool(fam)
+            log(f"공백 판정 — {fam}")
+            judgments.update(judge_all(fam_ideas, pool, label, period, key, model, prev_judgments))
+            suggestions.update(suggest_all(passing(fam_ideas, judgments), pool,
+                                           analysis["trendsByFamily"].get(fam, []),
                                            period, label, creds, key, model, prev_suggestions))
         ai_refreshed_at = now
     else:
         # 초록은 오늘 것으로 갱신하되, AI 결과는 지난 것을 그대로 들고 간다.
         log(f"Gemini 건너뜀 — {why}. 지난 AI 결과 {len(prev_suggestions)}건을 유지합니다.")
-        trend_reports, suggestions = prev_trends, prev_suggestions
+        trend_reports, suggestions, judgments = prev_trends, prev_suggestions, prev_judgments
         ai_refreshed_at = previous.get("aiRefreshedAt") or previous.get("generatedAt")
 
     snapshot = {"generatedAt": now, "model": model if key else None,
                 "aiRefreshedAt": ai_refreshed_at, "aiRanToday": run_ai, "aiSkipReason": None if run_ai else why,
-                "familyLabels": FAMILY_LABEL, "trendReports": trend_reports, "suggestions": suggestions, "analysis": analysis}
+                "familyLabels": FAMILY_LABEL, "trendReports": trend_reports, "suggestions": suggestions,
+                "judgments": judgments, "analysis": analysis}
     out = Path("data/daily.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(snapshot, ensure_ascii=False)
     out.write_text(text + "\n", "utf-8")
     log(f"저장 완료: {out} ({len(text.encode()) / 1048576:.2f}MB)")
-    log(f"AI 제안 {len(suggestions)}건, 동향 분석 {len(trend_reports)}건 (오늘 Gemini 실행: {'예' if run_ai else '아니오'})")
+    log(f"공백 판정 {len(judgments)}건, AI 제안 {len(suggestions)}건, 동향 분석 {len(trend_reports)}건 (오늘 Gemini 실행: {'예' if run_ai else '아니오'})")
 
 
 if __name__ == "__main__":

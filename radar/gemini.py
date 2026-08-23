@@ -15,6 +15,12 @@ ABSTRACT_CHARS = 1400
 ENHANCE_MIN = 20
 ENHANCE_MAX = 36
 
+# 판정 단계에 넣는 대표 논문 수. 제목만 보내므로 고도화보다 훨씬 싸다.
+JUDGE_TITLES = 12
+# 판정 프롬프트를 고치면 이 값을 올린다. 캐시 키에 들어가므로 옛 판정이 무효화된다.
+# 프롬프트만 바꾸고 이 값을 안 올리면 지난 판정이 그대로 재사용된다.
+JUDGE_PROMPT_VERSION = "2"
+
 IDEA_SCHEMA = {
     "type": "object",
     "properties": {
@@ -31,6 +37,20 @@ IDEA_SCHEMA = {
                                                 "required": ["pmid", "note"]}},
     },
     "required": ["question", "pico", "gap", "design", "limitations", "evidence"],
+}
+
+JUDGE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        # opportunity  = 실제로 비어 있고 채울 가치가 있다
+        # structural   = 그 분야의 1차 결과가 원래 다르다. 통계적 공백일 뿐 기회가 아니다
+        # answered     = 이미 충분히 답해졌거나 이 코퍼스 밖에서 다뤄지고 있다
+        "verdict": {"type": "string", "enum": ["opportunity", "structural", "answered"]},
+        "reason": {"type": "string"},
+        "confidence": {"type": "integer"},
+        "fieldStandard": {"type": "string"},
+    },
+    "required": ["verdict", "reason", "confidence"],
 }
 
 TREND_SCHEMA = {
@@ -128,6 +148,49 @@ def trend_prompt(family: str, period: str, analyzed: int, trends: list[dict], re
 4. watchList에는 아직 신호로 잡히지 않았지만 초록에서 관찰되는 초기 움직임을 쓰십시오. 없으면 빈 배열로 두십시오.
 5. headline은 한 문장, summary는 3~4문장으로 쓰십시오.
 6. 모든 서술은 한국어로 작성하십시오."""
+
+
+def judge_prompt(idea: dict, scope: str, period: str, titles: list[str]) -> str:
+    return f"""당신은 정형외과 무릎 분야의 연구 심사자입니다. 규칙 기반 분석기가 문헌 통계에서 "공백"을 하나 찾았습니다. 이 공백이 실제 연구 기회인지, 아니면 그 분야의 정상적인 특성인지 판정하십시오.
+
+[분석 범위] {scope} · {period}
+
+[통계가 찾아낸 공백]
+제목: {idea.get('title', '')}
+근거: {idea.get('rationale', '')}
+주제 태그: {', '.join(idea.get('tags', []))}
+
+[해당 주제의 대표 논문 제목]
+{chr(10).join(f'- {t}' for t in titles)}
+
+판정 기준:
+1. 이 지표가 낮은 것이 그 분야에서 **당연한** 일인지 먼저 따지십시오. 예를 들어 인공관절 감염 연구의 1차 결과는 균 박멸·재감염이지 환자보고 결과가 아닙니다. 이런 경우는 통계적으로 비어 있어도 연구 공백이 아니라 분야의 정상적 특성이므로 structural입니다. 이때 fieldStandard에 그 분야가 실제로 쓰는 1차 결과를 쓰십시오.
+2. 이 질문이 이미 충분히 답해졌거나, 이 코퍼스에 포함되지 않은 다른 학술지·학회에서 활발히 다뤄지고 있다고 판단되면 answered입니다.
+3. 위 둘 다 아니고, 임상적으로 답이 필요한데 실제로 비어 있다면 opportunity입니다.
+4. 이 코퍼스를 3년치 추적한 결과, 이런 공백의 대부분은 해가 바뀌어도 그대로 유지되는 구조적 특성이었습니다(공백 크기의 연도간 상관 0.9 이상). 따라서 기본값은 structural이고, opportunity는 예외적인 판정입니다. 애매하면 structural로 판정하십시오.
+5. confidence는 1~5 정수입니다. 5는 이 분야를 아는 사람이라면 누구나 동의할 명백한 경우에만 쓰십시오. 판단이 갈릴 수 있으면 3, 근거가 약하면 2 이하로 쓰십시오. 대부분의 판정은 3~4에 놓여야 정상입니다.
+6. reason은 2~3문장의 한국어로, 왜 그렇게 판정했는지 임상적 근거를 들어 쓰십시오. 통계 수치를 반복하지 마십시오."""
+
+
+def judge_gap(idea: dict, titles: list[str], scope: str, period: str,
+              api_key: str, model: str = GEMINI_DEFAULT_MODEL) -> dict:
+    """공백이 실제 기회인지 분야 특성인지 판정한다. 고도화 전에 거르는 용도."""
+    parsed = call_gemini(api_key, model, judge_prompt(idea, scope, period, titles[:JUDGE_TITLES]), JUDGE_SCHEMA)
+    verdict = str(parsed.get("verdict", "")).lower()
+    if verdict not in ("opportunity", "structural", "answered"):
+        verdict = "answered"
+    try:
+        confidence = max(1, min(5, int(parsed.get("confidence", 3))))
+    except (TypeError, ValueError):
+        confidence = 3
+    return {"model": model, "verdict": verdict, "confidence": confidence,
+            "reason": str(parsed.get("reason", "")), "fieldStandard": str(parsed.get("fieldStandard", ""))}
+
+
+def titles_for_idea(idea: dict, pool: list[dict], limit: int = JUDGE_TITLES) -> list[str]:
+    topics = [t for t in idea.get("tags", []) if any(t in a.get("topics", []) for a in pool)]
+    matching = [a for a in pool if not topics or any(t in a["topics"] for t in topics)]
+    return [a["title"] for a in sorted(matching, key=lambda a: a["date"], reverse=True)[:limit]]
 
 
 def pmids_for_idea(idea: dict, pool: list[dict], trends: list[dict], limit: int = ENHANCE_MAX) -> list[str]:

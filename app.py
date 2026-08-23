@@ -48,6 +48,10 @@ st.markdown("""
 .ai { border-left:4px solid var(--mint); background:#f2f9f5; padding:14px 18px; margin:8px 0 18px; }
 .ai .lbl { color:#176b48; font-size:10px; font-weight:800; letter-spacing:.15em; }
 .ai h3 { font-family:Georgia, serif; margin:6px 0; font-size:20px; }
+.verdict { border-left:3px solid #b9b0a0; background:#f6f3ec; padding:9px 13px; margin:6px 0 10px; font-size:12.5px; color:#4a544f; }
+.verdict b { color:var(--ink); }
+.verdict.op { border-left-color:#2f9e6e; background:#f1f9f5; }
+.verdict .std { display:block; margin-top:5px; color:#61716c; font-size:11.5px; }
 .caveat { border-left:4px solid var(--coral); background:#fff3f0; padding:12px 16px; font-size:13px; margin:16px 0; }
 .article { border-top:1px solid var(--line); padding:12px 0; }
 .article .meta { color:var(--muted); font-size:11px; margin-bottom:4px; }
@@ -242,6 +246,18 @@ def suggestion_for(idea_id: str) -> dict | None:
     return (snap or {}).get("suggestions", {}).get(idea_id)
 
 
+VERDICT_LABEL = {
+    "opportunity": ("연구 기회로 판정", "op"),
+    "structural": ("이 분야의 구조적 특성", ""),
+    "answered": ("이미 다뤄지고 있을 가능성", ""),
+}
+
+
+def judgment_for(idea_id: str) -> dict | None:
+    """공백이 실제 기회인지 분야 특성인지에 대한 AI 판정. 스냅샷에만 있다."""
+    return ((st.session_state.snapshot or {}).get("judgments", {}) or {}).get(idea_id)
+
+
 def is_saved(idea_id: str) -> bool:
     return any(i["id"] == idea_id for i in st.session_state.saved_ideas)
 
@@ -315,7 +331,7 @@ with st.sidebar:
     date_from = st.date_input("시작일", value=today - timedelta(days=365), max_value=today)
     date_to = st.date_input("종료일", value=today, min_value=date_from, max_value=today)
     focus = st.text_input("연구 초점 (선택)", placeholder="예: UKA conversion, rotator cuff, PROM")
-    run_clicked = st.button("분석 시작 ↗", type="primary", use_container_width=True)
+    run_clicked = st.button("분석 시작 ↗", type="primary", width="stretch")
     creds = credentials()
     st.caption("NCBI E-utilities 기반 · 검색된 초록 전량 수집"
                + (" · API 키 적용" if creds.api_key else "")
@@ -432,7 +448,7 @@ with left:
             "변화": f"{'+' if t['delta'] > 0 else ''}{t['delta']}%",
             "신호": signal_label(t["signal"]), "비중": t["share"],
         } for n, t in rows])
-        st.dataframe(tdf, hide_index=True, use_container_width=True,
+        st.dataframe(tdf, hide_index=True, width="stretch",
                      column_config={"비중": st.column_config.ProgressColumn("비중", format="%d%%", min_value=0, max_value=100)})
         if rising_tail:
             st.caption(f"편수 {TREND_ROWS}위 밖의 상승 신호 {len(rising_tail)}개를 아래에 덧붙였습니다.")
@@ -468,15 +484,15 @@ section("03", "논문 아이디어 후보", note)
 
 b1, b2, b3 = st.columns([1, 1, 4])
 if saved:
-    if b1.button("← 분석 결과로" if show_saved else f"★ 저장한 아이디어 {len(saved)}", use_container_width=True):
+    if b1.button("← 분석 결과로" if show_saved else f"★ 저장한 아이디어 {len(saved)}", width="stretch"):
         st.session_state.show_saved = not st.session_state.show_saved
         st.rerun()
 if show_saved:
     b2.download_button("저장 목록 내려받기 ↓", saved_markdown(), f"arthroscope-saved-{date.today().isoformat()}.md",
-                       "text/markdown", use_container_width=True)
+                       "text/markdown", width="stretch")
 else:
     b2.download_button("보고서 내려받기 ↓", report_markdown(analysis, active_trends, scope_label, scope_count, ideas, fell_back),
-                       f"arthroscope-{analysis['dateTo']}.md", "text/markdown", use_container_width=True)
+                       f"arthroscope-{analysis['dateTo']}.md", "text/markdown", width="stretch")
 
 shown = saved if show_saved else ideas
 gemini_key = secret("GEMINI_API_KEY")
@@ -492,17 +508,25 @@ for n, idea in enumerate(shown, 1):
         top_r.markdown(f"<div style='text-align:right;font-size:12px'>독창성 <b>{idea['novelty']}/5</b> · 실현성 <b>{idea['feasibility']}/5</b></div>", unsafe_allow_html=True)
         st.markdown(f"#### {idea['title']}")
         st.write(idea["rationale"])
+        verdict = judgment_for(idea["id"])
+        if verdict and verdict.get("verdict") in VERDICT_LABEL:
+            label, cls = VERDICT_LABEL[verdict["verdict"]]
+            std = verdict.get("fieldStandard")
+            st.markdown(
+                f'<div class="verdict {cls}"><b>{label}</b> · 확신 {verdict.get("confidence", "-")}/5<br>{verdict.get("reason", "")}'
+                + (f'<span class="std">이 분야의 1차 결과: {std}</span>' if std else "")
+                + "</div>", unsafe_allow_html=True)
         st.markdown(f"- **PICO** {idea['pico']}\n- **권장 설계** {idea['design']}\n- **1차 결과** {idea['primaryEndpoint']}")
         st.markdown("신호 근거 · " + " · ".join(f"[PMID {e['pmid']}]({pubmed(e['pmid'])})" for e in idea["evidence"]))
 
         c1, c2, _ = st.columns([1, 1, 3])
         saved_now = is_saved(idea["id"])
-        if c1.button(("★ 저장됨" if saved_now else "☆ 저장"), key=f"save_{idea['id']}", use_container_width=True):
+        if c1.button(("★ 저장됨" if saved_now else "☆ 저장"), key=f"save_{idea['id']}", width="stretch"):
             toggle_saved(idea, scope_label)
             st.rerun()
         if not show_saved:
             label = "✦ 다시 고도화" if suggestion_for(idea["id"]) else "✦ AI로 고도화"
-            if c2.button(label, key=f"enh_{idea['id']}", use_container_width=True, disabled=not gemini_key,
+            if c2.button(label, key=f"enh_{idea['id']}", width="stretch", disabled=not gemini_key,
                          help=None if gemini_key else "GEMINI_API_KEY를 설정하면 사용할 수 있습니다."):
                 pool = [a for a in analysis["articles"] if in_scope(a)]
                 pmids = pmids_for_idea(idea, pool, analysis["trends"])
