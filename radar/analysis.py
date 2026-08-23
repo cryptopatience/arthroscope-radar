@@ -6,6 +6,7 @@ Streamlit 앱과 일일 스냅샷 스크립트가 같은 run_analysis를 호출�
 from __future__ import annotations
 
 import json
+import math
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -58,7 +59,14 @@ TOPICS = [
     {"label": "로봇·내비게이션", "terms": ["robotic", "robot-assisted", "navigation", "computer-assisted", "augmented reality", "patient-specific instrumentation"]},
     {"label": "감염", "terms": ["infection", "periprosthetic joint infection", "pji", "antibiotic", "septic", "microbiology"]},
     {"label": "재수술·합병증", "terms": ["revision", "reoperation", "complication", "failure", "fracture", "readmission", "conversion", "instability"]},
-    {"label": "PROM·기대치", "terms": ["patient-reported", "prom", "expectation", "satisfaction", "minimal clinically important", "mcid", "quality of life"]},
+    # 초록은 "PROM"이라 쓰지 않고 도구명만 적는 경우가 많다. 무릎에서 실제로 쓰이는
+    # 도구를 직접 넣어야 한다. 전문 400편 실측에서 도구명만 있는 초록의 29%를 놓치고 있었다.
+    {"label": "PROM·기대치", "terms": [
+        "patient-reported", "patient reported", "prom", "promis", "expectation", "satisfaction",
+        "minimal clinically important", "mcid", "quality of life", "patient acceptable symptom",
+        "koos", "womac", "oxford knee", "forgotten joint", "ikdc", "lysholm", "tegner", "kujala",
+        "hoos", "marx activity", "knee society score", "eq-5d", "euroqol", "sf-36", "sf-12", "vr-12",
+        "visual analog*", "visual analogue*", "numeric rating scale"]},
     {"label": "정렬·생체역학", "terms": ["alignment", "kinematic*", "biomechanic*", "balance", "gait", "range of motion", "component position"]},
     {"label": "외래·회복", "terms": ["outpatient", "same-day", "enhanced recovery", "length of stay", "discharge", "opioid", "rehabilitation"]},
     {"label": "비용·보건정책", "terms": ["cost", "economic", "value", "bundled payment", "health care utilization", "resource utilization"]},
@@ -76,6 +84,23 @@ TOPIC_JOINT = {"회전근개·어깨": "어깨", "전방십자인대·반월상"
 
 # 이 레이더는 무릎에 대한 것이다. 앱 전체의 대상을 바꾸려면 이 한 줄만 바꾸면 된다.
 TARGET_JOINT = "무릎"
+
+# 하위집단 축. 무릎 하나만 분석하므로 "다른 관절로 확장" 공백은 성립하지 않는다.
+# 대신 무릎 안에서 실제로 결과가 갈리는 환자군을 축으로 삼는다.
+# TOPICS와 겹치는 축(성별·비만 등 형평성·환자요인)은 교차 공백 규칙과 중복되므로 뺐다.
+SUBGROUPS = [
+    {"label": "고령 환자", "terms": ["elderly", "octogenarian", "nonagenarian", "geriatric",
+                                 "older adult*", "advanced age", "age 75", "age 80", "aged 80"]},
+    {"label": "젊은 환자", "terms": ["young patient*", "younger patient*", "adolescent", "juvenile",
+                                 "skeletally immature", "under 50 years", "under 55 years", "age 50 or younger"]},
+    # family가 있으면 그 계열 문헌이 주류인 주제에만 적용한다. 재치환은 인공관절 개념이라
+    # "ACL 재건 연구에서 재치환 환자군" 같은 범주 오류를 막아야 한다.
+    {"label": "재치환·전환 수술", "family": "arthroplasty",
+     "terms": ["revision arthroplasty", "revision total knee", "revision tka",
+               "re-revision", "conversion to arthroplasty", "revision surgery"]},
+    {"label": "양측 동시 수술", "family": "arthroplasty",
+     "terms": ["bilateral", "simultaneous bilateral", "staged bilateral"]},
+]
 
 MONTHS = {"jan": "01", "feb": "02", "mar": "03", "apr": "04", "may": "05", "jun": "06",
           "jul": "07", "aug": "08", "sep": "09", "oct": "10", "nov": "11", "dec": "12"}
@@ -95,9 +120,21 @@ ESEARCH_ATTEMPTS = 3
 # 트렌드·아이디어 상수
 MIN_TREND_COUNT = 20
 MIN_TREND_SHARE = 3
+# 반기별 최소 편수. 전반기 3편 → 후반기 5편은 +60%지만 잡음이다. 교차 공백 규칙이
+# rising을 전제로 하므로 이 잡음이 아이디어까지 그대로 전파된다.
+MIN_TREND_HALF = 8
 MIN_IDEAS_FOR_SCOPE = 2
 PROSPECTIVE_DESIGNS = ("전향적 연구", "무작위시험")
+# 사설·정오표·종설·술기 보고·기초연구는 "전향 연구가 적다"의 분모가 될 수 없다.
+# 트렌드 표와 초록 목록에는 그대로 남기고, 아이디어 생성에서만 제외한다.
+NON_CLINICAL_DESIGNS = ("논평·기타", "종설", "체계적 문헌고찰", "기초·생체역학", "술기 보고", "증례 보고")
 IDEA_MIN_POOL = 15
+# 공백 판정은 절대 임계값 대신 "코퍼스의 나머지 대비 유의하게 낮은가"로 본다.
+# 절대값(예: PROM 30%)을 쓰면 사전 커버리지가 좋아질 때 규칙이 조용히 망가진다.
+GAP_Z = 1.96            # 단측이 아니라 보수적으로 1.96(약 p<0.025)을 넘겨야 공백으로 인정
+# 통계적 유의성만 보면 큰 주제가 작은 격차로도 통과한다(1,000편에서 7%p 차이도 z>5).
+# 그래서 "기준선의 이 비율 이하"라는 실질 격차 하한을 함께 건다.
+GAP_MIN_RATIO = 0.75
 IDEA_MAX = 8
 IDEA_PER_KIND = 4       # 같은 종류(outcome·design·joint·intersection)를 몇 개까지 뽑을지
 IDEA_PER_LEAD = 2       # 같은 주제를 몇 개까지 뽑을지
@@ -238,20 +275,51 @@ def classify_joint(text: str) -> str:
     return scores[0][0]
 
 
+def _family_share(items: list[Article], family: str) -> float:
+    if not items:
+        return 0.0
+    return sum(1 for a in items if JOURNALS[a.journalKey]["family"] == family) / len(items)
+
+
+def classify_subgroups(text: str) -> list[str]:
+    normalized = text.lower()
+    return [g["label"] for g in SUBGROUPS if any(_matches_term(normalized, t) for t in g["terms"])]
+
+
 def classify_design(text: str, publication_types: list[str]) -> str:
-    n = f"{text} {' '.join(publication_types)}".lower()
-    if "meta-analysis" in n or "systematic review" in n:
+    """PublicationType은 NLM이 색인 단계에서 붙인 값이라 본문 표현보다 신뢰도가 높다.
+    둘을 한 문자열로 합쳐 매칭하면 본문의 "review of the literature" 같은 표현이
+    종설로 오인되므로 분리해서 본다."""
+    types = {t.strip().lower() for t in publication_types}
+    n = text.lower()
+
+    if types & {"editorial", "comment", "letter", "published erratum", "news", "retraction of publication"}:
+        return "논평·기타"
+    if "case reports" in types:
+        return "증례 보고"
+    if types & {"meta-analysis", "systematic review"} or "meta-analysis" in n or "systematic review" in n:
         return "체계적 문헌고찰"
-    if "randomized controlled trial" in n or "randomised controlled trial" in n:
+    if "randomized controlled trial" in types or re.search(r"randomi[sz]ed controlled trial", n):
         return "무작위시험"
+    if "cadaver" in n or "biomechanic" in n or "in vitro" in n or "finite element" in n:
+        return "기초·생체역학"
     if "prospective" in n:
         return "전향적 연구"
+    if "controlled clinical trial" in types or re.search(r"randomi[sz]ed", n):
+        return "무작위시험"
+    if "cross-sectional" in n or "survey" in n or "questionnaire" in n or "delphi" in n or "consensus statement" in n:
+        return "단면·설문"
     if "registry" in n or "database" in n or "national inpatient" in n:
         return "등록·데이터베이스"
-    if "cadaver" in n or "biomechanical" in n or "in vitro" in n:
-        return "기초·생체역학"
-    if "retrospective" in n or "case series" in n or "cohort" in n:
+    if "retrospective" in n or "case series" in n or "case-control" in n:
         return "후향적 연구"
+    # "cohort"만 있고 시점 표현이 없으면 후향으로 단정하지 않는다. 실제로 142편이 여기 해당했다.
+    if "cohort" in n or "observational study" in types:
+        return "관찰 코호트"
+    if "technical note" in n or "surgical technique" in n:
+        return "술기 보고"
+    if "review" in types:
+        return "종설"
     return "기타 임상연구"
 
 
@@ -328,9 +396,9 @@ def build_trends(articles: list[Article], date_from: str, date_to: str) -> list[
         sparse = len(matching) < MIN_TREND_COUNT or share < MIN_TREND_SHARE
         if sparse:
             signal = "sparse"
-        elif delta >= 20 and recent >= 2:
+        elif delta >= 20 and recent >= MIN_TREND_HALF and previous >= MIN_TREND_HALF:
             signal = "rising"
-        elif delta <= -20 and previous >= 2:
+        elif delta <= -20 and previous >= MIN_TREND_HALF and recent >= MIN_TREND_HALF:
             signal = "cooling"
         else:
             signal = "steady"
@@ -361,9 +429,6 @@ def with_particle(word: str, after_consonant: str, after_vowel: str) -> str:
     return word + (after_consonant if _final_jong(word) > 0 else after_vowel)
 
 
-def with_direction(word: str) -> str:
-    jong = _final_jong(word)
-    return word + ("으로" if jong > 0 and jong != 8 else "로")
 
 
 # ---------------------------------------------------------------------------
@@ -379,19 +444,35 @@ def _clamp(value: float) -> int:
     return max(2, min(5, round(value)))
 
 
+def _deficit_z(observed: int, size: int, baseline: float) -> float:
+    """기준선 대비 부족분의 z값. 양수가 클수록 "나머지 코퍼스보다 유의하게 낮다".
+
+    강도로도 그대로 쓴다. 편수에 비례하던 기존 공식과 달리 √n으로 완만하게 커져,
+    큰 주제가 순위를 독식하는 구조적 편향이 줄어든다.
+    """
+    if size <= 0 or not 0.0 < baseline < 1.0:
+        return 0.0
+    se = math.sqrt(baseline * (1.0 - baseline) / size)
+    return (baseline - observed / size) / se if se > 0 else 0.0
+
+
+def _baseline(rest: list[Article], predicate) -> float:
+    return (sum(1 for a in rest if predicate(a)) / len(rest)) if rest else 0.0
+
+
 def generate_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea]:
     """실제 코퍼스에 있는 공백에서 아이디어를 도출한다. 공백이 없으면 아무것도 내지 않는다."""
+    articles = [a for a in articles if a.design not in NON_CLINICAL_DESIGNS]
     total = len(articles)
     if not total:
         return []
     ranked = [t for t in trends if t.signal != "sparse"]
     pools = {t.label: [a for a in articles if t.label in a.topics] for t in ranked}
-    joint_counts: dict[str, int] = {}
-    for a in articles:
-        if a.joint != "기타·다관절":
-            joint_counts[a.joint] = joint_counts.get(a.joint, 0) + 1
+    subgroup_map = {a.pmid: classify_subgroups(f"{a.title} {a.abstract}") for a in articles}
 
-    candidates: list[tuple[float, str, str, Idea]] = []  # (strength, kind, lead, idea)
+    # (strength, kind, lead, axis, idea). axis는 하위집단·교차처럼 두 번째 축이 있는 규칙에서
+    # 그 축이 목록을 독식하지 않게 막는 용도. 없으면 None.
+    candidates: list[tuple[float, str, str, str | None, Idea]] = []
 
     for trend in ranked:
         pool = pools[trend.label]
@@ -401,62 +482,80 @@ def generate_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea]:
         gw = 1.6 if growing else 1
         delta_text = f"{'+' if trend.delta > 0 else ''}{trend.delta}%"
 
-        # 결과 공백: 주제는 쌓이는데 환자보고 결과로 이어지지 않는다.
+        # 이 주제를 다루지 않는 나머지 초록이 비교 기준. 주제 자신을 기준선에 넣으면
+        # 큰 주제일수록 자기 자신과 비교하게 되어 공백이 희석된다.
+        rest = [a for a in articles if trend.label not in a.topics]
+
+        # 결과 공백: 나머지 코퍼스보다 PROM을 유의하게 덜 다룬다.
         with_prom = [a for a in pool if "PROM·기대치" in a.topics]
         prom_ratio = len(with_prom) / len(pool)
-        if trend.label != "PROM·기대치" and prom_ratio < 0.3:
-            candidates.append(((0.3 - prom_ratio) * len(pool) * gw, "outcome", trend.label, Idea(
+        prom_base = _baseline(rest, lambda a: "PROM·기대치" in a.topics)
+        prom_z = _deficit_z(len(with_prom), len(pool), prom_base)
+        if trend.label != "PROM·기대치" and prom_z >= GAP_Z and prom_ratio <= prom_base * GAP_MIN_RATIO:
+            candidates.append((prom_z * gw, "outcome", trend.label, None, Idea(
                 id=f"outcome-{trend.label}",
                 title=f"{trend.label} 연구의 결과가 환자 체감 회복으로 이어지는가?",
                 rationale=(f"이 범위에서 {with_particle(trend.label, '은', '는')} {len(pool)}편({trend.share}%)이고 전반기 대비 {delta_text} 변화했습니다. "
-                           f"그런데 PROM·기대치를 함께 다룬 초록은 {len(with_prom)}편({round(prom_ratio * 100)}%)뿐입니다. "
+                           f"PROM·기대치를 함께 다룬 초록은 {len(with_prom)}편({round(prom_ratio * 100)}%)으로, "
+                           f"나머지 문헌의 {round(prom_base * 100)}%보다 {prom_z:.1f}표준편차 낮습니다. "
                            "지표 개선이 환자가 체감하는 회복으로 옮겨가는지는 아직 비어 있습니다."),
                 pico=f"{trend.label} 관련 수술·시술을 받은 성인에서, 해당 지표의 개선이 12개월 PROM의 MCID 달성을 예측하는지 평가",
                 design="후향 코호트 + 시간순 내부검증 (기존 PROM 추적자료 활용)",
                 primaryEndpoint="12개월 질환별 PROM의 MCID 달성률",
-                novelty=_clamp(3 + (0.3 - prom_ratio) * 6), feasibility=5,
+                novelty=_clamp(2 + prom_z / 3), feasibility=5,
                 evidence=_pick_evidence(pool), tags=[trend.label, "PROM·MCID", "결과지표 공백"],
             )))
 
-        # 근거수준 공백: 거의 전부 후향 연구.
+        # 근거수준 공백: 나머지 코퍼스보다 전향 연구 비중이 유의하게 낮다.
         prospective = [a for a in pool if a.design in PROSPECTIVE_DESIGNS]
         p_ratio = len(prospective) / len(pool)
-        if p_ratio < 0.15:
-            candidates.append(((0.15 - p_ratio) * len(pool) * 2 * gw, "design", trend.label, Idea(
+        pro_base = _baseline(rest, lambda a: a.design in PROSPECTIVE_DESIGNS)
+        pro_z = _deficit_z(len(prospective), len(pool), pro_base)
+        if pro_z >= GAP_Z and p_ratio <= pro_base * GAP_MIN_RATIO:
+            # 설계 공백은 해결책이 명확해(전향 등록) 결과 공백보다 조금 우대한다.
+            candidates.append((pro_z * 1.2 * gw, "design", trend.label, None, Idea(
                 id=f"design-{trend.label}",
                 title=f"{trend.label}의 후향적 결론을 전향적으로 재현할 수 있는가?",
-                rationale=(f"{trend.label} {len(pool)}편 중 전향적 연구·무작위시험은 {len(prospective)}편({round(p_ratio * 100)}%)입니다. "
+                rationale=(f"{trend.label} {len(pool)}편 중 전향적 연구·무작위시험은 {len(prospective)}편({round(p_ratio * 100)}%)으로, "
+                           f"나머지 문헌의 {round(pro_base * 100)}%보다 {pro_z:.1f}표준편차 낮습니다. "
                            "대부분 후향 자료에 기대고 있어 적응증 선택 편향을 배제하지 못합니다. "
                            "단일 기관 전향 등록만으로도 근거 수준을 한 단계 올릴 수 있는 구간입니다."),
                 pico=f"{trend.label} 적응증 환자에서, 사전 정의된 프로토콜에 따른 전향 추적이 기존 후향 보고와 같은 결과를 보이는지 검증",
                 design="단일·다기관 전향 관찰 등록연구 (사전 등록 권장)",
                 primaryEndpoint="사전 정의된 12개월 1차 결과변수의 재현 여부",
-                novelty=_clamp(3 + (0.15 - p_ratio) * 10), feasibility=3,
+                novelty=_clamp(2 + pro_z / 3), feasibility=3,
                 evidence=_pick_evidence(pool), tags=[trend.label, "전향 검증", "근거수준 공백"],
             )))
 
-        # 관절 공백: 코퍼스가 잘 다루는 관절인데 이 주제는 건너뛴다.
-        if not TOPIC_JOINT.get(trend.label):
-            for joint, joint_total in joint_counts.items():
-                joint_share = joint_total / total
-                if joint_share < 0.15:
-                    continue
-                observed = [a for a in pool if a.joint == joint]
-                expected = len(pool) * joint_share
-                if expected < 3 or len(observed) >= expected * GAP_RATIO:
-                    continue
-                candidates.append(((expected - len(observed)) * gw, "joint", trend.label, Idea(
-                    id=f"joint-{trend.label}-{joint}",
-                    title=f"{trend.label} 연구를 {with_direction(joint)} 확장하면 같은 결과가 나오는가?",
-                    rationale=(f"이 범위에서 {with_particle(joint, '은', '는')} 전체의 {round(joint_share * 100)}%를 차지하지만, "
-                               f"{trend.label} {len(pool)}편 중 {with_particle(joint, '을', '를')} 다룬 것은 {len(observed)}편입니다(비중대로면 {round(expected)}편). "
-                               f"다른 관절에서 확립된 방법을 {joint}에 적용해 재현성을 확인할 여지가 있습니다."),
-                    pico=f"{joint} 수술 환자에서, {trend.label}에서 확립된 지표·개입이 동일한 방향의 결과를 보이는지 평가",
-                    design="후향 코호트 (타 관절 선행연구와 동일 프로토콜로 정렬)",
-                    primaryEndpoint="선행연구와 동일하게 정의한 12개월 1차 결과변수",
-                    novelty=_clamp(3 + ((expected - len(observed)) / max(expected, 1)) * 3), feasibility=4,
-                    evidence=_pick_evidence(observed or pool), tags=[trend.label, joint, "관절 공백"],
-                )))
+        # 하위집단 공백: 코퍼스가 충분히 다루는 환자군인데 이 주제는 따로 검증하지 않는다.
+        for group in SUBGROUPS:
+            label = group["label"]
+            if label in trend.label:
+                continue
+            family = group.get("family")
+            if family and _family_share(pool, family) < 0.5:
+                continue    # 이 주제는 해당 계열 문헌이 주류가 아니다 → 범주 오류
+            base = _baseline(rest, lambda a: label in subgroup_map[a.pmid])
+            if base < 0.04:            # 코퍼스 자체가 거의 안 다루면 공백이 아니라 관심 밖이다
+                continue
+            observed = [a for a in pool if label in subgroup_map[a.pmid]]
+            z = _deficit_z(len(observed), len(pool), base)
+            ratio = len(observed) / len(pool)
+            if z < GAP_Z or ratio > base * GAP_MIN_RATIO:
+                continue
+            candidates.append((z * gw, "subgroup", trend.label, label, Idea(
+                id=f"subgroup-{trend.label}-{label}",
+                title=f"{trend.label} 연구에서 {with_particle(label, '은', '는')} 따로 검증됐는가?",
+                rationale=(f"이 범위 전체에서 {with_particle(label, '을', '를')} 명시적으로 다룬 초록은 {round(base * 100)}%인데, "
+                           f"{trend.label} {len(pool)}편 중에서는 {len(observed)}편({round(ratio * 100)}%)뿐입니다"
+                           f"(기준선보다 {z:.1f}표준편차 낮음). "
+                           f"결과가 갈릴 가능성이 큰 환자군인데 하위군 분석이 비어 있는 구간입니다."),
+                pico=f"{label}에 해당하는 무릎 환자에서, {trend.label}에서 확립된 지표·개입이 전체 코호트와 같은 방향의 결과를 보이는지 평가",
+                design="기존 코호트의 사전 정의된 하위군 분석 (검정력 확인 후) 또는 해당 환자군 전향 등록",
+                primaryEndpoint="전체 코호트 대비 하위군의 12개월 1차 결과변수 차이 (교호작용 검정)",
+                novelty=_clamp(3 + z / 3), feasibility=4,
+                evidence=_pick_evidence(observed or pool), tags=[trend.label, label, "하위집단 공백"],
+            )))
 
     # 교차 공백: 규모 대비 함께 다뤄지지 않는 두 주제.
     for i in range(len(ranked)):
@@ -475,7 +574,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea]:
             if expected < 3 or len(observed) >= expected * GAP_RATIO:
                 continue
             lead = first.label if first.signal == "rising" else second.label
-            candidates.append(((expected - len(observed)) * 1.4, "intersection", lead, Idea(
+            candidates.append(((expected - len(observed)) * 1.4, "intersection", lead, second.label, Idea(
                 id=f"intersection-{first.label}-{second.label}",
                 title=f"{with_particle(first.label, '과', '와')} {with_particle(second.label, '을', '를')} 함께 보면 무엇이 달라지는가?",
                 rationale=(f"{first.label} {len(pool_first)}편, {second.label} {len(pool_second)}편이 각각 축적되어 있는데 둘을 함께 다룬 초록은 "
@@ -493,12 +592,17 @@ def generate_ideas(articles: list[Article], trends: list[Trend]) -> list[Idea]:
     chosen: list[Idea] = []
     kind_used: dict[str, int] = {}
     lead_used: dict[str, int] = {}
-    for strength, kind, lead, idea in sorted(candidates, key=lambda c: -c[0]):
+    axis_used: dict[str, int] = {}
+    for strength, kind, lead, axis, idea in sorted(candidates, key=lambda c: -c[0]):
         if kind_used.get(kind, 0) >= IDEA_PER_KIND or lead_used.get(lead, 0) >= IDEA_PER_LEAD:
+            continue
+        if axis and axis_used.get(axis, 0) >= IDEA_PER_LEAD:
             continue
         chosen.append(idea)
         kind_used[kind] = kind_used.get(kind, 0) + 1
         lead_used[lead] = lead_used.get(lead, 0) + 1
+        if axis:
+            axis_used[axis] = axis_used.get(axis, 0) + 1
         if len(chosen) == IDEA_MAX:
             break
     return chosen
