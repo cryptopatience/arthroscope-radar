@@ -9,6 +9,7 @@ import collections
 import hashlib
 import json
 import os
+import subprocess
 import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -27,8 +28,8 @@ from radar import config  # noqa: E402
 from radar.analysis import JOURNAL_ORDER, JOURNALS, run_analysis  # noqa: E402
 from radar.gemini import (GEMINI_DEFAULT_MODEL, ENHANCE_MIN, enhance_idea,  # noqa: E402
                           family_trend_report, pmids_for_idea)
-from radar.judge import (BLOCKED_VERDICTS, JUDGE_RUNS, build_panel, cache_versions,  # noqa: E402
-                         evidence_summary, judge_panel, titles_for_idea)
+from radar.judge import (BLOCKED_VERDICTS, JUDGE_PROMPT_VERSION, JUDGE_RUNS, build_panel,  # noqa: E402
+                         cache_versions, evidence_summary, judge_panel, titles_for_idea)
 from radar.ncbi import NcbiCredentials  # noqa: E402
 from radar import prior_art, selection  # noqa: E402
 
@@ -47,6 +48,120 @@ SNAPSHOT = Path("data/daily.json")
 # 알 수가 없다. 그래서 실행마다 한 줄씩 남기고 앱 사이드바가 그대로 읽는다.
 RUN_LOG = Path("data/run_log.json")
 RUN_LOG_KEEP = 90
+# 이 실행을 그대로 재현하는 데 필요한 것 전부. 전문가 평가는 이 manifest가 고정된
+# 뒤에 시작해야 한다 — 사전이나 임계값이 바뀐 뒤의 결과와 섞이면 평가가 무의미해진다.
+MANIFEST = Path("data/run_manifest.json")
+
+
+def git_commit() -> str:
+    try:
+        return subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                              capture_output=True, text=True, timeout=10).stdout.strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
+def write_manifest(analysis: dict, judgments: dict, prior: dict, selections: dict,
+                   model: str, panel_models: list[str], run_ai: bool):
+    """재현성 manifest. 무엇으로 언제 어떤 규칙으로 만든 결과인지 한 파일에 남긴다."""
+    from radar import config
+    from radar.vocabulary import CANONICAL_OUTCOME_VERSION, KEYWORD_DICT_VERSION
+    thresholds = {name: getattr(config, name) for name in dir(config)
+                  if name.isupper() and isinstance(getattr(config, name), (int, float, str))}
+    payload = {
+        "commit": git_commit(),
+        "cacheVersion": cache_versions(),
+        "retrievalDate": analysis["dateTo"],
+        "generatedAt": analysis["generatedAt"],
+        "period": {"from": analysis["dateFrom"], "to": analysis["dateTo"]},
+        "journalSet": [j["key"] for j in analysis["journals"]],
+        "pubmedQueries": analysis.get("pubmedQueries") or {},
+        "priorArtQueries": {k: v.get("query") for k, v in prior.items() if isinstance(v, dict)},
+        "corpusPmids": [a["pmid"] for a in analysis["articles"]],
+        "thresholds": thresholds,
+        "dictionaryVersion": KEYWORD_DICT_VERSION,
+        "canonicalOutcomeVersion": CANONICAL_OUTCOME_VERSION,
+        "promptVersion": JUDGE_PROMPT_VERSION,
+        "modelVersion": {"primary": model, "panel": panel_models, "judgeRuns": JUDGE_RUNS},
+        "geminiRan": run_ai,
+        "rawJudgmentsSaved": bool(judgments),
+        "counts": {"articles": analysis["analyzed"], "candidates": len(analysis["ideas"]),
+                   "judgments": len(judgments), "priorArt": len(prior),
+                   "final": len((selections.get("all") or {}).get("final") or [])},
+    }
+    MANIFEST.parent.mkdir(parents=True, exist_ok=True)
+    MANIFEST.write_text(json.dumps(payload, ensure_ascii=False, indent=1) + "\n", "utf-8")
+    log(f"manifest 저장: {MANIFEST} (commit {payload['commit']} · {payload['cacheVersion']})")
+
+
+def report_summary(analysis: dict, judgments: dict, prior: dict, selections: dict):
+    """고정 실행 결과 한 장. 전문가 평가 전에 이 숫자를 먼저 확정한다."""
+    ideas = analysis["ideas"]
+    picked = selections.get("all") or {}
+    scores = picked.get("scores") or {}
+    line = "─" * 62
+    out = [line, "고정 실행 요약", line]
+
+    out.append(f"수집 논문 {analysis['analyzed']:,}편 (검색 {analysis['totalAvailable']:,}건 중 "
+               f"초록 보유 {analysis['withAbstract']:,}편)")
+    out.append("저널별: " + " · ".join(f"{JOURNALS[j['key']]['short']} {j['count']}" for j in analysis["journals"]))
+
+    clusters = collections.Counter(t for a in analysis["articles"] for t in a["topics"])
+    out.append("")
+    out.append("클러스터별 논문 수:")
+    for label, count in clusters.most_common():
+        out.append(f"    {label:20} {count:5}")
+
+    out.append("")
+    out.append(f"감지된 clusterId × gapId: {len(ideas)}개")
+    for idea in ideas:
+        verdict = (judgments.get(idea["id"]) or {}).get("verdict", "미판정")
+        score = scores.get(idea["id"]) or {}
+        pa = prior.get(idea["id"]) or {}
+        direct = pa.get("matchCount")
+        out.append(f"    [{verdict:11}] {idea['id']:48} "
+                   f"{idea['gapCategory']:31} 점수 {score.get('total', '-'):>3} "
+                   f"선행 direct {direct if direct is not None else '미측정'}")
+
+    verdicts = collections.Counter((judgments.get(i["id"]) or {}).get("verdict", "미판정") for i in ideas)
+    out.append("")
+    out.append(f"판정 분포: {dict(verdicts)}")
+
+    ok = [p for p in prior.values() if isinstance(p, dict) and not p.get("error")]
+    if ok:
+        out.append(f"선행연구: direct {sum(p.get('matchCount') or 0 for p in ok)} · "
+                   f"adjacent {sum(p.get('adjacentCount') or 0 for p in ok)} · "
+                   f"background {sum(p.get('backgroundCount') or 0 for p in ok)} "
+                   f"(검증 {len(ok)}/{len(ideas)}건, 실패 {len(prior) - len(ok)}건)")
+
+    final_ids = picked.get("final") or []
+    final = [i for i in ideas if i["id"] in final_ids]
+    eligible = [i for i in ideas if not (scores.get(i["id"]) or {}).get("ineligible")]
+    prom = [i for i in final if i.get("outcomeSubtype") in ("prom", "prom_interpretation")]
+    cats = collections.Counter(i["gapCategory"] for i in final)
+    out.append("")
+    out.append(f"자격 통과 {len(eligible)}개 → 최종 선정 {len(final)}개 "
+               f"(조합 {picked.get('combinationsChecked', 0):,}가지 탐색)")
+    out.append(f"PROM 아이디어 {len(prom)}개 (상한 {config.MAX_PROM_IDEAS})")
+    out.append(f"카테고리 분산 {len(cats)}종: {dict(cats)}")
+    out.append(f"중복 제거 {len(picked.get('duplicates') or [])}개 · "
+               f"차단 {len(picked.get('blocked') or [])}개 · "
+               f"검증 대기 {len(picked.get('provisional') or [])}개")
+
+    unmeasured = [i["id"] for i in ideas if "novelty" in ((scores.get(i["id"]) or {}).get("unscored") or [])]
+    errors = [k for k, v in prior.items() if isinstance(v, dict) and v.get("error")]
+    out.append(f"독창성 미측정 {len(unmeasured)}개 · 선행연구 오류 {len(errors)}개")
+
+    out.append("")
+    out.append("최종 아이디어:")
+    for n, idea in enumerate(final, 1):
+        score = scores.get(idea["id"]) or {}
+        out.append(f"  {n}. [{idea['gapCategory']}] {idea['title']}")
+        out.append(f"     {idea['id']} · 점수 {score.get('total')} · 축 {score.get('axes')}")
+        out.append(f"     1차 결과: {idea['primaryEndpoint']}")
+    out.append(line)
+    for row in out:
+        log(row)
 
 
 def env(name: str) -> str:
@@ -319,6 +434,10 @@ def main(started: datetime):
     log(f"저장 완료: {out} ({len(text.encode()) / 1048576:.2f}MB)")
     log(f"공백 판정 {len(judgments)}건, 선행연구 {len(prior)}건, AI 제안 {len(suggestions)}건, "
         f"동향 분석 {len(trend_reports)}건 (오늘 Gemini 실행: {'예' if run_ai else '아니오'})")
+
+    write_manifest(analysis, judgments, prior, selections, model,
+                   [j.name for j in panel], run_ai)
+    report_summary(analysis, judgments, prior, selections)
 
     failed = sum(1 for v in list(judgments.values()) + list(suggestions.values()) + list(trend_reports.values())
                  if isinstance(v, dict) and v.get("error"))

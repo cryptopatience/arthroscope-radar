@@ -19,7 +19,7 @@ from .vocabulary import (ACCURACY_TERMS, DIRECT_COMPARISON_TERMS, EXTERNAL_VALID
                          LONGTERM_TERMS, PATIENT_OUTCOME_TERMS, PROM_CLINICAL_INTERPRETATION,
                          PROM_INSTRUMENTS, PROM_MEASUREMENT_ERROR, PROM_GAP_HARD_BLOCK,
                          PROM_GAP_NEEDS_STRONG, TECHNOLOGY_CLUSTERS, canonical, horizon,
-                         longterm_outcomes, longterm_subtype, resolve, variant_scores)
+                         longterm_outcomes, longterm_subtype, resolve, variant_sets)
 
 # ---------------------------------------------------------------------------
 # 저널·계열·주제 정의
@@ -644,19 +644,22 @@ def _analysis_units(cluster: str, pool: list[Article]) -> list[tuple[dict, list[
     한쪽으로 임의 배정하면 다른 쪽 연구의 1차 결과가 통째로 틀린 기준이 된다.
     표본이 모자라면 나누지 않고 mixed 그대로 둔다 — 판정이 uncertain으로 간다.
     """
-    texts = [f"{a.title} {a.abstract}" for a in pool]
-    spec = resolve(cluster, texts)
+    documents = [(a.pmid, f"{a.title} {a.abstract}") for a in pool]
+    spec = resolve(cluster, documents)
     if spec.get("variant") != "mixed":
         return [(spec, pool, "")]
 
     variants = spec.get("variants") or {}
+    sets = variant_sets(spec, documents)
     units: list[tuple[dict, list[Article], str]] = []
-    for name, variant in variants.items():
-        terms = [t.lower() for t in variant["terms"]]
-        sub = [a for a in pool
-               if any(t in f"{a.title} {a.abstract}".lower() for t in terms)]
+    for name in variants:
+        # 양쪽에 다 걸리는 논문은 어느 쪽 근거도 되지 못하므로 배타 집합으로 나눈다.
+        # 겹치는 논문을 양쪽에 다 넣으면 같은 근거가 두 번 세어진다.
+        others = set().union(*(sets[n] for n in variants if n != name)) if len(variants) > 1 else set()
+        exclusive = sets[name] - others
+        sub = [a for a in pool if a.pmid in exclusive]
         if len(sub) >= IDEA_MIN_POOL:
-            units.append(({**spec, **variant, "variant": name}, sub, f"@{name}"))
+            units.append(({**spec, **variants[name], "variant": name}, sub, f"@{name}"))
     # 양쪽 다 충분해야 나눈다. 한쪽만 충분하면 나머지가 조용히 사라진다.
     return units if len(units) == len(variants) else [(spec, pool, "")]
 
@@ -1067,9 +1070,11 @@ def run_analysis(journals: list[str], date_from: str, date_to: str, focus: str =
 
     total_available = 0
     ids: list[str] = []
+    queries: dict[str, str] = {}
     for index, key in enumerate(journals):
         report(0.05 + 0.25 * index / len(journals), f"PubMed 검색 중 — {JOURNALS[key]['short']}")
         term = f"{JOURNALS[key]['query']} AND {date_query}{focus_query}"
+        queries[key] = term      # 재현성 manifest에 그대로 저장한다
         journal_ids, count = _esearch_journal(key, term, credentials, throttle)
         total_available += count
         ids.extend(journal_ids)
@@ -1146,6 +1151,7 @@ def run_analysis(journals: list[str], date_from: str, date_to: str, focus: str =
         "dateFrom": date_from,
         "dateTo": date_to,
         "query": focus,
+        "pubmedQueries": queries,
         "totalAvailable": total_available,
         "analyzed": len(articles),
         "withAbstract": len(with_abstract),

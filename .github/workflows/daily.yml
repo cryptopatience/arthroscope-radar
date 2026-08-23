@@ -47,7 +47,7 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
-          git add -A data/daily.json data/run_log.json
+          git add -A data/daily.json data/run_log.json data/run_manifest.json
           if git diff --cached --quiet; then
             echo "변경 없음 — 커밋을 건너뜁니다."; exit 0
           fi

@@ -12,7 +12,7 @@ from __future__ import annotations
 # 용어 사전을 고치면 올린다.
 KEYWORD_DICT_VERSION = "1"
 # 분야별 기준 결과변수(CANONICAL_OUTCOMES)를 고치면 올린다.
-CANONICAL_OUTCOME_VERSION = "6"
+CANONICAL_OUTCOME_VERSION = "7"
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +294,8 @@ def longterm_outcomes(spec: dict) -> list[str]:
 # 그에 따라 설계가 달라진다.
 LONGTERM_SUBTYPES = {
     "durability": "결과가 유지되는가 (생존·재파열)",
-    "cumulative_risk": "기간이 길수록 쌓이는 위험 (누적 재수술·재입원·비용)",
+    "cumulative_risk": "기간이 길수록 쌓이는 위험 (누적 재수술·재입원·합병증)",
+    "cumulative_cost_resource_use": "기간이 길수록 쌓이는 부담 (누적 의료비·자원 사용·QALY)",
     "sustained_recovery": "회복이 유지되는가 (PROM·기능 궤적)",
     "temporal_trend": "격차·비율이 시간에 따라 변하는가 (인구집단 추세)",
     "prediction_horizon": "예측기간 시점의 모델 성능",
@@ -308,6 +309,9 @@ def longterm_subtype(spec: dict, outcomes: list[str]) -> str:
     blob = " ".join(outcomes)
     if any(time_attribute(o) == "horizon_dependent" for o in outcomes):
         return "prediction_horizon"
+    # 비용은 위험이 아니라 부담이다. 통계 설계가 달라진다(생존분석 vs 누적 비용 모형).
+    if any(word in blob for word in ("의료비", "비용", "자원 사용", "QALY", "ICER")):
+        return "cumulative_cost_resource_use"
     if "누적" in blob:
         return "cumulative_risk"
     if any(word in blob for word in ("PROM", "회복", "기능", "만족도", "활동 수준")):
@@ -320,18 +324,40 @@ def horizon(spec: dict) -> str:
     return spec.get("horizon") or "5년"
 
 
-def variant_scores(spec: dict, texts: list[str]) -> dict:
-    blob = " ".join(texts).lower()
-    return {name: sum(blob.count(term.lower()) for term in variant["terms"])
-            for name, variant in (spec.get("variants") or {}).items()}
+def variant_sets(spec: dict, documents: list[tuple[str, str]]) -> dict[str, set[str]]:
+    """변이별로 걸리는 **고유 논문 PMID 집합**.
+
+    용어 출현 횟수로 세면 안 된다. 한 논문이 access 용어를 다섯 번 쓰면 다섯 편처럼
+    보인다. 실제로 형평성 59편에서 출현 횟수는 55:29였지만 논문 수는 36:17이었고,
+    그중 13편은 양쪽에 다 걸렸다. 우세 판정과 최소 표본 기준은 둘 다 논문 수로 재야 한다.
+    """
+    out: dict[str, set[str]] = {}
+    for name, variant in (spec.get("variants") or {}).items():
+        terms = [t.lower() for t in variant["terms"]]
+        out[name] = {pmid for pmid, text in documents if any(t in text.lower() for t in terms)}
+    return out
 
 
-def resolve(topic: str, texts: list[str]) -> dict:
+def variant_breakdown(sets: dict[str, set[str]], total: set[str]) -> dict:
+    """겹침을 그대로 기록한다. 어느 쪽에도 안 걸린 논문 수까지 남긴다."""
+    names = list(sets)
+    covered = set().union(*sets.values()) if sets else set()
+    breakdown = {"total": len(total), "neither": len(total - covered)}
+    for name in names:
+        others = set().union(*(sets[n] for n in names if n != name)) if len(names) > 1 else set()
+        breakdown[f"{name}_matched"] = len(sets[name])
+        breakdown[f"{name}_only"] = len(sets[name] - others)
+    if len(names) > 1:
+        breakdown["both"] = len(set.intersection(*sets.values()))
+    return breakdown
+
+
+def resolve(topic: str, documents: list[tuple[str, str]]) -> dict:
     """클러스터의 하위 유형을 문헌에서 정한다.
 
     형평성처럼 한 이름 아래 성격이 다른 연구가 섞이는 클러스터가 있다. 접근성
     연구와 수술 후 결과 격차 연구는 1차 결과도 PROM의 위치도 다르므로, 그 묶음에
-    실제로 무엇이 많은지 세어 정한다.
+    실제로 무엇이 많은지 **고유 논문 수로** 세어 정한다.
 
     1위가 뚜렷하지 않으면 임의로 한쪽에 보내지 않고 mixed로 둔다. 이때 PROM 역할은
     보수적인 기본값(primary가 아님)을 유지하고, 판정 프롬프트에 섞여 있다는 사실을
@@ -339,20 +365,23 @@ def resolve(topic: str, texts: list[str]) -> dict:
     """
     from . import config
     spec = canonical(topic)
-    if not spec.get("variants") or not texts:
+    if not spec.get("variants") or not documents:
         return spec
-    scores = variant_scores(spec, texts)
-    if not scores or not max(scores.values()):
+    sets = variant_sets(spec, documents)
+    counts = {name: len(pmids) for name, pmids in sets.items()}
+    breakdown = variant_breakdown(sets, {pmid for pmid, _ in documents})
+    if not counts or not max(counts.values()):
         return spec
-    best = max(scores, key=lambda name: scores[name])
-    others = sorted((v for k, v in scores.items() if k != best), reverse=True)
-    if others and scores[best] < others[0] * config.SUBTYPE_DOMINANCE_RATIO:
-        return {**spec, "variant": "mixed", "variantScores": scores,
+    best = max(counts, key=lambda name: counts[name])
+    others = sorted((v for k, v in counts.items() if k != best), reverse=True)
+    if others and counts[best] < others[0] * config.SUBTYPE_DOMINANCE_RATIO:
+        return {**spec, "variant": "mixed", "variantCounts": counts, "variantBreakdown": breakdown,
                 "subtypeNote": "이 묶음에는 " + " / ".join(
-                    f"{v['label']}({scores[k]}회)" for k, v in spec["variants"].items())
-                + " 연구가 비슷한 비중으로 섞여 있습니다. 1차 결과가 서로 다르므로 "
-                  "하나의 정의로 판정할 수 없습니다."}
-    return {**spec, **spec["variants"][best], "variant": best, "variantScores": scores}
+                    f"{v['label']}({counts[k]}편)" for k, v in spec["variants"].items())
+                + f" 연구가 비슷한 비중으로 섞여 있습니다(양쪽 모두 해당 {breakdown.get('both', 0)}편). "
+                  "1차 결과가 서로 다르므로 하나의 정의로 판정할 수 없습니다."}
+    return {**spec, **spec["variants"][best], "variant": best,
+            "variantCounts": counts, "variantBreakdown": breakdown}
 
 
 PROM_GAP_HARD_BLOCK = {"not_applicable"}
