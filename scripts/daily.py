@@ -59,12 +59,23 @@ MANIFEST = Path("data/run_manifest.json")
 CORPUS_DIR = Path("data/corpus")
 
 
-def git_commit() -> str:
-    try:
-        return subprocess.run(["git", "rev-parse", "--short", "HEAD"],
-                              capture_output=True, text=True, timeout=10).stdout.strip() or "unknown"
-    except Exception:
-        return "unknown"
+def git_state() -> dict:
+    """실행이 **시작될 때**의 commit. 기록 시점에 읽으면 실행 중 커밋한 것이 잡힌다.
+
+    실제로 그렇게 됐다 — f449b88로 돌던 실행의 manifest에 962fed8이 찍혔다.
+    작업 트리가 더러우면 그 사실도 남긴다. 커밋만으로는 재현되지 않기 때문이다.
+    """
+    def run(args):
+        try:
+            return subprocess.run(args, capture_output=True, text=True, timeout=10).stdout.strip()
+        except Exception:
+            return ""
+    commit = run(["git", "rev-parse", "--short", "HEAD"]) or "unknown"
+    dirty = bool(run(["git", "status", "--porcelain", "--untracked-files=no"]))
+    return {"commit": commit, "dirty": dirty}
+
+
+GIT_STATE = git_state()   # import 시점 = 실행 시작 시점
 
 
 def _canonical(payload) -> str:
@@ -115,7 +126,8 @@ def write_manifest(analysis: dict, judgments: dict, prior: dict, selections: dic
     thresholds = {name: getattr(config, name) for name in dir(config)
                   if name.isupper() and isinstance(getattr(config, name), (int, float, str))}
     payload = {
-        "commit": git_commit(),
+        "commit": GIT_STATE["commit"],
+        "workingTreeDirty": GIT_STATE["dirty"],
         "cacheVersion": cache_versions(),
         "retrievalDate": analysis["dateTo"],
         "generatedAt": analysis["generatedAt"],
@@ -130,6 +142,7 @@ def write_manifest(analysis: dict, judgments: dict, prior: dict, selections: dic
             ([a["pmid"], a["title"], a["abstract"], a["journal"], a["date"]]
              for a in analysis["articles"]), key=lambda row: row[0])),
         "llmJudgmentHash": _sha256(judgments),
+        "judgmentScopes": {scope: len(rows) for scope, rows in judgments.items()},
         "priorArtResultHash": _sha256(prior),
         "rawCorpusSnapshot": save_corpus(analysis),
         "thresholds": thresholds,
@@ -139,12 +152,13 @@ def write_manifest(analysis: dict, judgments: dict, prior: dict, selections: dic
         "judgmentSchemaVersion": JUDGE_SCHEMA_VERSION,
         "modelVersion": {"primary": model, "panel": panel_models, "judgeRuns": JUDGE_RUNS},
         # 판정마다 어떤 입력으로 나왔는지. 다음 실행의 캐시 판단 근거이자 감사 흔적이다.
-        "judgmentInputHashes": {k: v.get("judgmentInputHash") for k, v in judgments.items()
-                                if isinstance(v, dict)},
+        "judgmentInputHashes": {f"{scope}::{k}": v.get("judgmentInputHash")
+                                for scope, rows in judgments.items()
+                                for k, v in rows.items() if isinstance(v, dict)},
         "geminiRan": run_ai,
         "rawJudgmentsSaved": bool(judgments),
         "counts": {"articles": analysis["analyzed"], "candidates": len(analysis["ideas"]),
-                   "judgments": len(judgments), "priorArt": len(prior),
+                   "judgments": sum(len(rows) for rows in judgments.values()), "priorArt": len(prior),
                    "final": len((selections.get("all") or {}).get("final") or [])},
     }
     MANIFEST.parent.mkdir(parents=True, exist_ok=True)
@@ -152,9 +166,10 @@ def write_manifest(analysis: dict, judgments: dict, prior: dict, selections: dic
     log(f"manifest 저장: {MANIFEST} (commit {payload['commit']} · {payload['cacheVersion']})")
 
 
-def report_summary(analysis: dict, judgments: dict, prior: dict, selections: dict):
+def report_summary(analysis: dict, all_judgments: dict, prior: dict, selections: dict):
     """고정 실행 결과 한 장. 전문가 평가 전에 이 숫자를 먼저 확정한다."""
     ideas = analysis["ideas"]
+    judgments = all_judgments.get("all") or {}      # 요약은 전역 범위 기준
     picked = selections.get("all") or {}
     scores = picked.get("scores") or {}
     line = "─" * 62
@@ -187,10 +202,13 @@ def report_summary(analysis: dict, judgments: dict, prior: dict, selections: dic
 
     ok = [p for p in prior.values() if isinstance(p, dict) and not p.get("error")]
     if ok:
-        out.append(f"선행연구: direct {sum(p.get('matchCount') or 0 for p in ok)} · "
-                   f"adjacent {sum(p.get('adjacentCount') or 0 for p in ok)} · "
-                   f"background {sum(p.get('backgroundCount') or 0 for p in ok)} "
-                   f"(검증 {len(ok)}/{len(ideas)}건, 실패 {len(prior) - len(ok)}건)")
+        scoped = [prior[i["id"]] for i in ideas if isinstance(prior.get(i["id"]), dict)
+                  and not prior[i["id"]].get("error")]
+        out.append(f"선행연구(전역 후보 {len(scoped)}개): "
+                   f"direct {sum(p.get('matchCount') or 0 for p in scoped)} · "
+                   f"adjacent {sum(p.get('adjacentCount') or 0 for p in scoped)} · "
+                   f"background {sum(p.get('backgroundCount') or 0 for p in scoped)}")
+        out.append(f"  (계열 포함 전체 검증 {len(ok)}건 / 대상 {len(prior)}건, 실패 {len(prior) - len(ok)}건)")
 
     final_ids = picked.get("final") or []
     final = [i for i in ideas if i["id"] in final_ids]
@@ -340,6 +358,18 @@ def check_prior_art(ideas, judgments, creds, prev: dict) -> dict:
     return out
 
 
+SCOPE_KEYS = ("all", *FAMILY_LABEL)
+
+
+def _by_scope(stored: dict) -> dict:
+    """범위별 구조로 정규화한다. 옛 스냅샷의 평평한 사전은 전역 범위로 본다."""
+    if not stored:
+        return {}
+    if all(k in SCOPE_KEYS for k in stored):
+        return stored
+    return {"all": stored}
+
+
 def _selection_summary(picked: dict) -> dict:
     """스냅샷에는 아이디어 본문이 아니라 id만 담는다. 본문은 analysis.ideas에 이미 있다."""
     return {"final": [i["id"] for i in picked["final"]],
@@ -347,7 +377,9 @@ def _selection_summary(picked: dict) -> dict:
             "duplicates": [i["id"] for i in picked["duplicates"]],
             "scores": picked["allScores"],
             "distinctCategories": picked["distinctCategories"],
-            "shortOfTarget": picked["shortOfTarget"]}
+            "shortOfTarget": picked["shortOfTarget"],
+            "combinationsChecked": picked.get("combinationsChecked", 0),
+            "provisional": [i["id"] for i in picked.get("provisional") or []]}
 
 
 def suggest_all(ideas, pool, trends, period, scope, creds, key, model, prev: dict) -> dict:
@@ -397,8 +429,10 @@ def main(started: datetime):
 
     period = f"{date_from}–{date_to}"
     prev_trends = previous.get("trendReports") or {}
-    prev_suggestions = previous.get("suggestions") or {}
-    prev_judgments = previous.get("judgments") or {}
+    # 옛 스냅샷은 판정을 평평한 사전으로 담았다. 범위별 구조로 올려 읽는다.
+    prev_judgments = _by_scope(previous.get("judgments") or {})
+    prev_suggestions_raw = previous.get("suggestions") or {}
+    prev_suggestions = _by_scope(prev_suggestions_raw)
     prev_prior = previous.get("priorArt") or {}
     now = datetime.now(timezone.utc).isoformat()
 
@@ -411,9 +445,9 @@ def main(started: datetime):
     # 지난 판정에서 structural이던 후보는 건너뛴다 — 어차피 최종에 못 온다.
     prior = {}
     log(f"선행연구 검증 (PubMed 전체, 최근 {config.PRIOR_ART_YEARS}년)")
-    prior.update(check_prior_art(analysis["ideas"], prev_judgments, creds, prev_prior))
-    for fam_ideas in analysis["ideasByFamily"].values():
-        prior.update(check_prior_art(fam_ideas, prev_judgments, creds, prev_prior))
+    prior.update(check_prior_art(analysis["ideas"], prev_judgments.get("all") or {}, creds, prev_prior))
+    for fam, fam_ideas in analysis["ideasByFamily"].items():
+        prior.update(check_prior_art(fam_ideas, prev_judgments.get(fam) or {}, creds, prev_prior))
     for group in [analysis["ideas"], *analysis["ideasByFamily"].values()]:
         for idea in group:
             if idea["id"] in prior:
@@ -447,19 +481,23 @@ def main(started: datetime):
                 log(f"동향 분석 실패 — {fam}: {error}")
 
         log(f"공백 판정 — 무릎 전체 (판정단 {', '.join(j.name for j in panel)} · 주 모델 {JUDGE_RUNS}회 반복)")
-        judgments.update(judge_all(analysis["ideas"], analysis["articles"], "무릎 전체", period,
-                                   panel, prev_judgments))
-        counts = collections.Counter((judgments.get(i["id"]) or {}).get("verdict", "실패")
+        # 범위별로 따로 담는다. 아이디어 id는 범위가 달라도 같으므로, 한 사전에 부으면
+        # 계열 판정이 전역 판정을 덮어쓴다(실제로 40건 중 13건이 덮어써졌다).
+        # 판정 프롬프트에 scope가 들어가므로 둘은 서로 다른 판정이다.
+        judgments["all"] = judge_all(analysis["ideas"], analysis["articles"], "무릎 전체", period,
+                                     panel, (prev_judgments.get("all") or {}))
+        counts = collections.Counter((judgments["all"].get(i["id"]) or {}).get("verdict", "실패")
                                      for i in analysis["ideas"])
         log(f"판정 결과 {dict(counts)}")
 
-        picked = selection.select(analysis["ideas"], judgments)
+        picked = selection.select(analysis["ideas"], judgments["all"])
         selections["all"] = _selection_summary(picked)
         log(f"최종 선정 {len(picked['final'])}개 "
             f"(카테고리 {picked['distinctCategories']}종 · structural 차단 {len(picked['blocked'])} · "
             f"중복 제거 {len(picked['duplicates'])})")
-        suggestions.update(suggest_all(picked["final"], analysis["articles"], analysis["trends"],
-                                       period, "무릎 전체", creds, key, model, prev_suggestions))
+        suggestions["all"] = suggest_all(picked["final"], analysis["articles"], analysis["trends"],
+                                         period, "무릎 전체", creds, key, model,
+                                         (prev_suggestions.get("all") or {}))
 
         for fam, label in FAMILY_LABEL.items():
             fam_ideas = analysis["ideasByFamily"].get(fam) or []
@@ -467,18 +505,21 @@ def main(started: datetime):
                 continue
             pool = family_pool(fam)
             log(f"공백 판정 — {fam}")
-            judgments.update(judge_all(fam_ideas, pool, label, period, panel, prev_judgments))
-            fam_pick = selection.select(fam_ideas, judgments)
+            judgments[fam] = judge_all(fam_ideas, pool, label, period, panel,
+                                       (prev_judgments.get(fam) or {}))
+            fam_pick = selection.select(fam_ideas, judgments[fam])
             selections[fam] = _selection_summary(fam_pick)
             log(f"최종 선정 {len(fam_pick['final'])}개 — {fam}")
-            suggestions.update(suggest_all(fam_pick["final"], pool,
+            suggestions[fam] = suggest_all(fam_pick["final"], pool,
                                            analysis["trendsByFamily"].get(fam, []),
-                                           period, label, creds, key, model, prev_suggestions))
+                                           period, label, creds, key, model,
+                                           (prev_suggestions.get(fam) or {}))
         ai_refreshed_at = now
     else:
         # 초록은 오늘 것으로 갱신하되, AI 결과는 지난 것을 그대로 들고 간다.
         log(f"Gemini 건너뜀 — {why}. 지난 AI 결과 {len(prev_suggestions)}건을 유지합니다.")
-        trend_reports, suggestions, judgments = prev_trends, prev_suggestions, prev_judgments
+        trend_reports = prev_trends
+        suggestions, judgments = prev_suggestions, prev_judgments
         selections = previous.get("selections") or {}
         ai_refreshed_at = previous.get("aiRefreshedAt") or previous.get("generatedAt")
 
@@ -492,15 +533,19 @@ def main(started: datetime):
     text = json.dumps(snapshot, ensure_ascii=False)
     out.write_text(text + "\n", "utf-8")
     log(f"저장 완료: {out} ({len(text.encode()) / 1048576:.2f}MB)")
-    log(f"공백 판정 {len(judgments)}건, 선행연구 {len(prior)}건, AI 제안 {len(suggestions)}건, "
+    judged = sum(len(rows) for rows in judgments.values())
+    suggested = sum(len(rows) for rows in suggestions.values())
+    log(f"공백 판정 {judged}건({' · '.join(f'{k} {len(v)}' for k, v in judgments.items())}), "
+        f"선행연구 {len(prior)}건, AI 제안 {suggested}건, "
         f"동향 분석 {len(trend_reports)}건 (오늘 Gemini 실행: {'예' if run_ai else '아니오'})")
 
     write_manifest(analysis, judgments, prior, selections, model,
                    [j.name for j in panel], run_ai)
     report_summary(analysis, judgments, prior, selections)
 
-    failed = sum(1 for v in list(judgments.values()) + list(suggestions.values()) + list(trend_reports.values())
-                 if isinstance(v, dict) and v.get("error"))
+    failed = sum(1 for group in (*judgments.values(), *suggestions.values())
+                 for v in group.values() if isinstance(v, dict) and v.get("error"))
+    failed += sum(1 for v in trend_reports.values() if isinstance(v, dict) and v.get("error"))
     append_run({
         "at": now, "date": date_to, "ok": True, "seconds": round((datetime.now(timezone.utc) - started).total_seconds()),
         "collected": analysis["collected"], "analyzed": analysis["analyzed"],
@@ -508,7 +553,7 @@ def main(started: datetime):
         "capped": analysis["capped"], "journals": len(analysis["journals"]), "ideas": len(analysis["ideas"]),
         "sizeMB": round(len(text.encode()) / 1048576, 2),
         "ai": {"ran": run_ai, "reason": why, "model": model if key else None,
-               "judged": len(judgments), "suggested": len(suggestions), "trends": len(trend_reports),
+               "judged": judged, "suggested": suggested, "trends": len(trend_reports),
                "priorArt": len(prior), "final": len((selections.get("all") or {}).get("final") or []),
                "failed": failed},
         "error": None,

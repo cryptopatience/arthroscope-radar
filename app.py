@@ -286,13 +286,30 @@ def active_ideas(analysis: dict) -> tuple[list[dict], bool]:
 def suggestion_for(idea_id: str) -> dict | None:
     if idea_id in st.session_state.enhanced:
         return st.session_state.enhanced[idea_id]
-    snap = st.session_state.snapshot
-    return (snap or {}).get("suggestions", {}).get(idea_id)
+    return _scoped("suggestions").get(idea_id)
+
+
+def scope_key() -> str:
+    """스냅샷에서 판정·제안을 찾을 범위 열쇠. 저널 단위는 따로 판정하지 않으므로 전역을 쓴다."""
+    kind, key = st.session_state.scope
+    return key if kind == "family" else "all"
+
+
+def _scoped(section: str) -> dict:
+    """범위별로 저장된 판정·제안. 옛 스냅샷은 평평한 사전이라 그대로 전역으로 읽는다.
+
+    아이디어 id는 범위가 달라도 같다. 한 사전에 부으면 계열 판정이 전역 판정을
+    덮어쓴다 — 실제로 40건 중 13건이 그렇게 사라졌다.
+    """
+    stored = (st.session_state.snapshot or {}).get(section) or {}
+    if stored and set(stored) <= {"all", *FAMILY_ORDER}:
+        return stored.get(scope_key()) or {}
+    return stored      # 옛 형식(평평한 사전)
 
 
 def judgment_for(idea_id: str) -> dict | None:
     """공백이 실제 기회인지 분야 특성인지에 대한 AI 판정. 스냅샷에만 있다."""
-    judgment = ((st.session_state.snapshot or {}).get("judgments", {}) or {}).get(idea_id)
+    judgment = _scoped("judgments").get(idea_id)
     return judgment if isinstance(judgment, dict) and judgment.get("verdict") in VERDICT_LABEL else None
 
 
