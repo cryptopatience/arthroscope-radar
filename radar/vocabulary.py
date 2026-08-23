@@ -339,7 +339,12 @@ def variant_sets(spec: dict, documents: list[tuple[str, str]]) -> dict[str, set[
 
 
 def variant_breakdown(sets: dict[str, set[str]], total: set[str]) -> dict:
-    """겹침을 그대로 기록한다. 어느 쪽에도 안 걸린 논문 수까지 남긴다."""
+    """겹침을 그대로 기록한다. 어느 쪽에도 안 걸린 논문 수까지 남긴다.
+
+    양쪽에 다 걸린 논문은 잘못 센 것이 아니라 두 질문에 모두 해당하는 다중 라벨
+    논문이다. 형평성이라면 "접근성 차이가 실제 회복 격차로 이어지는가"를 다룬
+    연결 문헌일 수 있어, 오히려 가장 값진 신호다. 버리지 않고 겹친다는 사실만 남긴다.
+    """
     names = list(sets)
     covered = set().union(*sets.values()) if sets else set()
     breakdown = {"total": len(total), "neither": len(total - covered)}
@@ -348,7 +353,11 @@ def variant_breakdown(sets: dict[str, set[str]], total: set[str]) -> dict:
         breakdown[f"{name}_matched"] = len(sets[name])
         breakdown[f"{name}_only"] = len(sets[name] - others)
     if len(names) > 1:
-        breakdown["both"] = len(set.intersection(*sets.values()))
+        overlap = set.intersection(*sets.values())
+        breakdown["overlapCount"] = len(overlap)
+        breakdown["overlapRate"] = round(len(overlap) / max(len(covered), 1), 3)
+        # 겹침이 있으면 두 하위집단은 독립이 아니다. 최종 선정에서 둘을 함께 뽑지 않는다.
+        breakdown["independentSubgroups"] = not overlap
     return breakdown
 
 
@@ -376,12 +385,14 @@ def resolve(topic: str, documents: list[tuple[str, str]]) -> dict:
     others = sorted((v for k, v in counts.items() if k != best), reverse=True)
     if others and counts[best] < others[0] * config.SUBTYPE_DOMINANCE_RATIO:
         return {**spec, "variant": "mixed", "variantCounts": counts, "variantBreakdown": breakdown,
+                "independentSubgroups": breakdown.get("independentSubgroups", True),
                 "subtypeNote": "이 묶음에는 " + " / ".join(
                     f"{v['label']}({counts[k]}편)" for k, v in spec["variants"].items())
                 + f" 연구가 비슷한 비중으로 섞여 있습니다(양쪽 모두 해당 {breakdown.get('both', 0)}편). "
                   "1차 결과가 서로 다르므로 하나의 정의로 판정할 수 없습니다."}
     return {**spec, **spec["variants"][best], "variant": best,
-            "variantCounts": counts, "variantBreakdown": breakdown}
+            "variantCounts": counts, "variantBreakdown": breakdown,
+            "independentSubgroups": breakdown.get("independentSubgroups", True)}
 
 
 PROM_GAP_HARD_BLOCK = {"not_applicable"}

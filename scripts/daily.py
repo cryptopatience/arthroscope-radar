@@ -61,6 +61,13 @@ def git_commit() -> str:
         return "unknown"
 
 
+def _sha256(payload) -> str:
+    """정렬된 JSON의 해시. PMID 목록만으로는 부족하다 — PubMed가 초록이나 메타데이터를
+    나중에 고치면 같은 PMID로도 다른 입력이 된다."""
+    blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return "sha256:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
 def write_manifest(analysis: dict, judgments: dict, prior: dict, selections: dict,
                    model: str, panel_models: list[str], run_ai: bool):
     """재현성 manifest. 무엇으로 언제 어떤 규칙으로 만든 결과인지 한 파일에 남긴다."""
@@ -77,7 +84,16 @@ def write_manifest(analysis: dict, judgments: dict, prior: dict, selections: dic
         "journalSet": [j["key"] for j in analysis["journals"]],
         "pubmedQueries": analysis.get("pubmedQueries") or {},
         "priorArtQueries": {k: v.get("query") for k, v in prior.items() if isinstance(v, dict)},
-        "corpusPmids": [a["pmid"] for a in analysis["articles"]],
+        "corpusPmids": sorted(a["pmid"] for a in analysis["articles"]),
+        "corpusPmidsHash": _sha256(sorted(a["pmid"] for a in analysis["articles"])),
+        # 초록·제목·저널·날짜까지 넣은 해시. PubMed가 사후 수정해도 차이가 드러난다.
+        "corpusContentHash": _sha256(sorted(
+            [a["pmid"], a["title"], a["abstract"], a["journal"], a["date"]]
+            for a in analysis["articles"])),
+        "llmJudgmentHash": _sha256(judgments),
+        "priorArtResultHash": _sha256(prior),
+        # 원문 PubMed 응답은 저장소에 두지 않는다. 필요하면 Release 자산으로 올린다.
+        "rawCorpusSnapshot": None,
         "thresholds": thresholds,
         "dictionaryVersion": KEYWORD_DICT_VERSION,
         "canonicalOutcomeVersion": CANONICAL_OUTCOME_VERSION,

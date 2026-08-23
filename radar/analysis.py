@@ -653,11 +653,12 @@ def _analysis_units(cluster: str, pool: list[Article]) -> list[tuple[dict, list[
     sets = variant_sets(spec, documents)
     units: list[tuple[dict, list[Article], str]] = []
     for name in variants:
-        # 양쪽에 다 걸리는 논문은 어느 쪽 근거도 되지 못하므로 배타 집합으로 나눈다.
-        # 겹치는 논문을 양쪽에 다 넣으면 같은 근거가 두 번 세어진다.
-        others = set().union(*(sets[n] for n in variants if n != name)) if len(variants) > 1 else set()
-        exclusive = sets[name] - others
-        sub = [a for a in pool if a.pmid in exclusive]
+        # 양쪽에 다 걸리는 논문도 그 하위집단의 근거로 그대로 쓴다. 잘못 센 것이 아니라
+        # 두 질문에 모두 해당하는 다중 라벨 논문이고, 형평성이라면 "접근성 차이가 실제
+        # 회복 격차로 이어지는가"를 다룬 연결 문헌일 수 있다. 빼면 가장 값진 신호가 사라진다.
+        # 같은 근거가 두 아이디어의 점수를 동시에 밀어 올리는 문제는 논문을 버려서가
+        # 아니라 최종 선정에서 "독립이 아닌 하위집단은 하나만"으로 막는다.
+        sub = [a for a in pool if a.pmid in sets[name]]
         if len(sub) >= IDEA_MIN_POOL:
             units.append(({**spec, **variants[name], "variant": name}, sub, f"@{name}"))
     # 양쪽 다 충분해야 나눈다. 한쪽만 충분하면 나머지가 조용히 사라진다.

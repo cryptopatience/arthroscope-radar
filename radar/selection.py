@@ -36,6 +36,12 @@ def gap_category(idea: dict) -> str:
     return category if category in GAP_CATEGORIES else UNKNOWN
 
 
+def base_gap_key(idea: dict) -> str:
+    """하위유형 접미사를 뗀 열쇠. 같은 클러스터의 같은 공백이면 같은 값이 된다."""
+    gap = (idea.get("gapId") or "").split("@")[0]
+    return f"{idea.get('clusterId', '')}:{gap}"
+
+
 def source_gap_key(idea: dict) -> str:
     """같은 후보를 묶는 열쇠 — 분석 단위와 같은 `클러스터 × 공백`이다.
 
@@ -207,6 +213,7 @@ def _violates(combo: list[tuple[dict, dict]]) -> bool:
     categories: dict[str, int] = {}
     prom = 0
     seen_gaps = set()
+    shared_bases = set()
     for idea, _ in combo:
         category = gap_category(idea)
         if category == UNKNOWN:
@@ -218,6 +225,13 @@ def _violates(combo: list[tuple[dict, dict]]) -> bool:
         if gap in seen_gaps:
             return True
         seen_gaps.add(gap)
+        # 하위집단이 근거를 공유하면(형평성 접근성 ∩ 결과 격차) 두 아이디어의 점수를
+        # 같은 논문이 동시에 밀어 올린다. 논문을 버리는 대신 여기서 하나만 고른다.
+        if (idea.get("canonical") or {}).get("independentSubgroups") is False:
+            base = base_gap_key(idea)
+            if base in shared_bases:
+                return True
+            shared_bases.add(base)
         if idea.get("outcomeSubtype") in PROM_SUBTYPES:
             prom += 1
             # opportunity가 여럿 나와도 상한을 올리지 않는다. 대신 점수가 높은
