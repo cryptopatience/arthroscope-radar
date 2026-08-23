@@ -18,7 +18,8 @@ from .ncbi import EUTILS, NcbiCredentials, decode_xml, fetch_ncbi_text, ncbi_par
 from .vocabulary import (ACCURACY_TERMS, DIRECT_COMPARISON_TERMS, EXTERNAL_VALIDATION_TERMS,
                          LONGTERM_TERMS, PATIENT_OUTCOME_TERMS, PROM_CLINICAL_INTERPRETATION,
                          PROM_INSTRUMENTS, PROM_MEASUREMENT_ERROR, PROM_GAP_HARD_BLOCK,
-                         PROM_GAP_NEEDS_STRONG, TECHNOLOGY_CLUSTERS, canonical, longterm_outcomes)
+                         PROM_GAP_NEEDS_STRONG, TECHNOLOGY_CLUSTERS, canonical, horizon,
+                         longterm_outcomes, resolve)
 
 # ---------------------------------------------------------------------------
 # 저널·계열·주제 정의
@@ -601,10 +602,11 @@ def _passes(metrics: dict) -> bool:
             and abs(metrics["effectSize"]) >= GAP_MIN_EFFECT)
 
 
-def _idea(cluster: str, gap_id: str, category: str, subtype: str, **kwargs) -> Idea:
+def _idea(cluster: str, gap_id: str, category: str, subtype: str,
+          spec: dict | None = None, **kwargs) -> Idea:
     return Idea(id=f"{cluster}::{gap_id}", clusterId=cluster, gapId=gap_id,
                 gapCategory=category, outcomeSubtype=subtype,
-                canonical=canonical(cluster), **kwargs)
+                canonical=spec if spec is not None else canonical(cluster), **kwargs)
 
 
 def _pct(value: float) -> int:
@@ -667,7 +669,10 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
         if len(pool) < IDEA_MIN_POOL:
             continue
         cluster = trend.label
-        spec = canonical(cluster)
+        # 한 이름 아래 성격이 다른 연구가 섞이는 클러스터(형평성 = 접근성 vs 결과 격차)는
+        # 실제 문헌 구성을 보고 하위 유형을 정한다. 전체를 한 정의로 묶으면 접근성
+        # 연구에 PROM이 없는 것을 다시 공백으로 오판한다.
+        spec = resolve(cluster, [f"{a.title} {a.abstract}" for a in pool])
         # 추세는 필수조건이 아니라 보조 가점이다. 백테스트에서 모멘텀이 다음 시기의
         # 공백 축소를 예측하지 못했다.
         gw = 1 + config.TREND_BONUS if trend.signal == "rising" else 1
@@ -686,7 +691,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
             needs_strong = spec["prom_role"] in PROM_GAP_NEEDS_STRONG
             if _passes(m) and (not needs_strong or _strong(m)):
                 add(m["z"] * gw, "outcome", cluster, None, _idea(
-                    cluster, "prom_measurement", "outcome_measurement", "prom",
+                    cluster, "prom_measurement", "outcome_measurement", "prom", spec,
                     title=f"{cluster} 연구는 환자가 보고한 결과를 함께 재고 있는가?",
                     rationale=(f"이 범위에서 {with_particle(cluster, '은', '는')} {len(pool)}편({trend.share}%)이고 "
                                f"전반기 대비 {delta_text} 변화했습니다. 환자보고결과를 함께 잰 초록은 "
@@ -715,7 +720,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
             m = _gap_metrics(prom_pool, prom_rest, lambda a: _has(a, "prom_interpretation"), stamps, midpoint)
             if m["ratio"] <= config.PROM_INTERP_MAX_RATIO and _passes(m):
                 add(m["z"] * 1.3 * gw, "outcome", cluster, "prom_interpretation", _idea(
-                    cluster, "prom_interpretation", "outcome_measurement", "prom_interpretation",
+                    cluster, "prom_interpretation", "outcome_measurement", "prom_interpretation", spec,
                     title=f"{cluster}의 PROM 변화는 환자에게 의미 있는 크기인가?",
                     rationale=(f"{cluster} {len(pool)}편 중 PROM을 보고한 초록은 {len(prom_pool)}편으로 충분합니다. "
                                f"그런데 그중 MCID·PASS·SCB·responder로 해석까지 한 초록은 {m['observed']}편"
@@ -734,7 +739,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
         if _passes(m):
             # 설계 공백은 해결책이 명확해(전향 등록) 결과 공백보다 조금 우대한다.
             add(m["z"] * 1.2 * gw, "design", cluster, None, _idea(
-                cluster, "prospective_design", "methodology", "design",
+                cluster, "prospective_design", "methodology", "design", spec,
                 title=f"{cluster}의 후향적 결론을 전향적으로 재현할 수 있는가?",
                 rationale=(f"{cluster} {len(pool)}편 중 전향적 연구·무작위시험은 {m['observed']}편({_pct(m['ratio'])}%)으로, "
                            f"나머지 문헌의 {_pct(m['baseline'])}%보다 {m['z']:.1f}표준편차 낮습니다. "
@@ -751,7 +756,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
         m = _gap_metrics(pool, rest, lambda a: _has(a, "direct_comparison"), stamps, midpoint)
         if _passes(m):
             add(m["z"] * 1.25 * gw, "comparator", cluster, None, _idea(
-                cluster, "direct_comparison", "comparator", "comparator",
+                cluster, "direct_comparison", "comparator", "comparator", spec,
                 title=f"{cluster}에서 선택지끼리의 직접 비교가 있는가?",
                 rationale=(f"{cluster} {len(pool)}편 중 두 선택지를 직접 비교한 초록(무작위·성향점수 매칭·대조군 설정)은 "
                            f"{m['observed']}편({_pct(m['ratio'])}%)으로, 나머지 문헌의 {_pct(m['baseline'])}%보다 "
@@ -769,19 +774,24 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
         # 1차 결과변수를 그대로 쓰면 "5년 시점의 재원기간" 같은 문장이 나온다.
         # 재원기간·당일 퇴원·정렬 정확도는 수술 당시 한 번 재는 지표라 장기 질문의
         # 결과변수가 될 수 없다. 그 분야의 지속 가능한 지표를 따로 가져온다.
-        durable = longterm_outcomes(cluster)
+        durable = longterm_outcomes(spec)
+        span = horizon(spec)
+        # 인구집단 단위 질문(접근성 격차)에는 "수술 후 추적"이라는 말이 성립하지 않는다.
+        lead = f"{span}에 걸친" if spec.get("populationLevel") else f"수술 후 {span} 추적 시"
         m = _gap_metrics(pool, rest, lambda a: _has(a, "longterm"), stamps, midpoint)
         if durable and _passes(m):
             add(m["z"] * gw, "longterm", cluster, None, _idea(
-                cluster, "longterm_followup", "longterm_durability", "longterm",
+                cluster, "longterm_followup", "longterm_durability", "longterm", spec,
                 title=f"{cluster}의 초기 결과는 5년 뒤에도 유지되는가?",
                 rationale=(f"{cluster} {len(pool)}편 중 장기 추적·생존분석을 보고한 초록은 {m['observed']}편"
                            f"({_pct(m['ratio'])}%)으로, 나머지 문헌의 {_pct(m['baseline'])}%보다 "
-                           f"{m['z']:.1f}표준편차 낮습니다. 단기에 좋다는 것이 5년 뒤에도 좋다는 뜻은 아닙니다. "
+                           f"{m['z']:.1f}표준편차 낮습니다. 단기에 좋다는 것이 {span} 뒤에도 좋다는 뜻은 아닙니다. "
                            f"이 분야에서 장기적으로 물을 수 있는 지표는 {'·'.join(durable[:3])}입니다."),
-                pico=f"{cluster} 대상 환자에서, 최소 5년 추적 시 {'·'.join(durable[:2])} 평가",
+                pico=(f"{cluster} 관련 인구집단에서, {lead} {'·'.join(durable[:2])} 평가"
+                      if spec.get("populationLevel") else
+                      f"{cluster} 대상 환자에서, {lead} {'·'.join(durable[:2])} 평가"),
                 design=spec.get("longtermDesign") or "기존 코호트의 장기 연장 추적 또는 등록자료 생존분석",
-                primaryEndpoint=f"5년 시점의 {'·'.join(durable[:2])}",
+                primaryEndpoint=f"{lead} {'·'.join(durable[:2])}",
                 novelty=_clamp(3 + m["z"] / 3), feasibility=3,
                 evidence=_pick_evidence(pool), tags=[cluster, "장기 추적", "장기결과 공백"],
                 metrics=m))
@@ -795,7 +805,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
                 m = _gap_metrics(acc_pool, acc_rest, lambda a: _has(a, "patient_outcome"), stamps, midpoint)
                 if _passes(m):
                     add(m["z"] * 1.35 * gw, "utility", cluster, None, _idea(
-                        cluster, "clinical_utility", "clinical_utility_implementation", "utility",
+                        cluster, "clinical_utility", "clinical_utility_implementation", "utility", spec,
                         title=f"{cluster}의 정확도 향상이 실제 환자 결과를 바꾸는가?",
                         rationale=(f"{cluster}에서 정확도·성능 지표를 보고한 초록 {len(acc_pool)}편 중 "
                                    f"합병증·재수술·기능 같은 환자 결과까지 함께 본 초록은 {m['observed']}편"
@@ -814,7 +824,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
         m = _gap_metrics(pool, rest, lambda a: _has(a, "external_validation"), stamps, midpoint)
         if _passes(m):
             add(m["z"] * gw, "external", cluster, "external_validation", _idea(
-                cluster, "external_validation", "population_external_validity", "external_validation",
+                cluster, "external_validation", "population_external_validity", "external_validation", spec,
                 title=f"{cluster}의 결과는 다른 기관·집단에서도 재현되는가?",
                 rationale=(f"{cluster} {len(pool)}편 중 다기관·등록자료·외부 코호트 검증을 언급한 초록은 "
                            f"{m['observed']}편({_pct(m['ratio'])}%)으로, 나머지 문헌의 {_pct(m['baseline'])}%보다 "
@@ -844,7 +854,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
                 continue
             observed = [a for a in pool if label in subgroup_map[a.pmid]]
             add(m["z"] * gw, "subgroup", cluster, label, _idea(
-                cluster, f"subgroup_{label}", "population_external_validity", "subgroup",
+                cluster, f"subgroup_{label}", "population_external_validity", "subgroup", spec,
                 title=f"{cluster} 연구에서 {with_particle(label, '은', '는')} 따로 검증됐는가?",
                 rationale=(f"이 범위 전체에서 {with_particle(label, '을', '를')} 명시적으로 다룬 초록은 {_pct(m['baseline'])}%인데, "
                            f"{cluster} {len(pool)}편 중에서는 {m['observed']}편({_pct(m['ratio'])}%)뿐입니다"
