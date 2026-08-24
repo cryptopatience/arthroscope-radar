@@ -23,7 +23,7 @@ from dataclasses import dataclass
 import requests
 
 from . import config
-from .gemini import GEMINI_DEFAULT_MODEL, call_gemini
+from .gemini import call_gemini, resolve_model
 from .vocabulary import (CANONICAL_OUTCOME_VERSION, GAP_CATEGORIES, KEYWORD_DICT_VERSION,
                          LONGTERM_SUBTYPES, STRUCTURAL_PRIORS, canonical)
 
@@ -37,7 +37,7 @@ JUDGE_RUNS = 5
 # JUDGE_SCHEMA를 고치면 올린다. 같은 프롬프트라도 응답 구조가 달라지면 다른 판정이다.
 JUDGE_SCHEMA_VERSION = "1"
 # 교차 검증용 두 번째 Gemini 모델. 같은 회사지만 크기·학습이 달라 판정이 실제로 갈린다.
-GEMINI_SECOND_MODEL = "gemini-2.5-flash"
+GEMINI_SECOND_MODEL = "gemini-3.6-flash"
 OPENAI_DEFAULT_MODEL = "gpt-4o"
 
 # answered("이미 답해졌다")를 판정에서 뺐다. 그 질문은 최근 12개월 코퍼스로는
@@ -166,8 +166,8 @@ def cache_versions() -> str:
 def build_panel(gemini_key: str, gemini_model: str = "", second_model: str = "",
                 openai_key: str = "", openai_model: str = "") -> list[Judge]:
     """판정단. 첫 번째가 주 판정자이고, 안정성은 이 판정자를 반복해 잰다."""
-    panel = [Judge("gemini", gemini_model or GEMINI_DEFAULT_MODEL, gemini_key)]
-    second = second_model or GEMINI_SECOND_MODEL
+    panel = [Judge("gemini", resolve_model(gemini_model), gemini_key)]
+    second = resolve_model(second_model or GEMINI_SECOND_MODEL)
     if second and second != panel[0].model:
         panel.append(Judge("gemini", second, gemini_key))
     if openai_key:

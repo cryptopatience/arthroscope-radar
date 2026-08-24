@@ -16,7 +16,7 @@ import streamlit as st
 
 from radar import config
 from radar.analysis import FAMILIES, FAMILY_ORDER, JOURNAL_ORDER, JOURNALS, AnalysisError, run_analysis
-from radar.gemini import ENHANCE_MIN, GEMINI_DEFAULT_MODEL, enhance_idea, pmids_for_idea
+from radar.gemini import ENHANCE_MIN, enhance_idea, pmids_for_idea, resolve_model
 from radar.judge import VERDICT_LABEL, evidence_summary
 from radar.selection import PROM_SUBTYPES, gap_category, select
 from radar.vocabulary import GAP_CATEGORIES, LONGTERM_SUBTYPES
@@ -757,7 +757,7 @@ else:
 shown = saved if show_saved else ideas
 plan = None if show_saved else plan_ideas(shown)
 gemini_key = secret("GEMINI_API_KEY")
-gemini_model = secret("GEMINI_MODEL") or GEMINI_DEFAULT_MODEL
+gemini_model = resolve_model(secret("GEMINI_MODEL"))
 
 
 def render_idea(n: int, idea: dict):

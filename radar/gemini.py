@@ -8,12 +8,32 @@ import requests
 
 from .ncbi import NcbiCredentials, PubmedRecord, fetch_abstracts
 
-GEMINI_DEFAULT_MODEL = "gemini-2.5-pro"
+# 2026-08, Google가 gemini-2.5-* 를 신규 키에 대해 404로 막았다("no longer available to
+# new users"). 오류 본문이 지목한 후속 모델로 옮긴다. 옛 키는 2.5도 계속 되므로
+# GEMINI_MODEL로 되돌릴 수 있게 남겨 둔다.
+GEMINI_DEFAULT_MODEL = "gemini-3.1-pro-preview"
 ABSTRACT_CHARS = 1400
 
 # 고도화 한 번에 보내는 초록 수. 너무 적으면 추론할 근거가 없고, 많으면 비용이 커진다.
 ENHANCE_MIN = 20
 ENHANCE_MAX = 36
+
+# 은퇴한 모델 이름 → Google이 404 본문에서 직접 지목한 후속 모델.
+# 설정은 코드 밖에 있다(Streamlit secrets, GitHub Actions Variables). 그쪽에 옛 이름이
+# 남아 있으면 기본값을 고쳐도 야간 작업이 그대로 죽는다. 호출 직전에 갈아끼워서
+# 기록에도 실제로 쓴 모델이 남게 한다.
+RETIRED_MODELS = {
+    "gemini-2.5-pro": "gemini-3.1-pro-preview",
+    "gemini-2.5-flash": "gemini-3.6-flash",
+    "gemini-2.5-flash-lite": "gemini-3.5-flash-lite",
+}
+
+
+def resolve_model(model: str | None) -> str:
+    """설정에서 읽은 모델 이름을 지금 실제로 호출 가능한 이름으로 바꾼다."""
+    name = (model or "").strip()
+    return RETIRED_MODELS.get(name, name) or GEMINI_DEFAULT_MODEL
+
 
 IDEA_SCHEMA = {
     "type": "object",

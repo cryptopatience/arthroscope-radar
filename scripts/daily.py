@@ -27,8 +27,8 @@ for _stream in (sys.stdout, sys.stderr):
 
 from radar import config  # noqa: E402
 from radar.analysis import JOURNAL_ORDER, JOURNALS, run_analysis  # noqa: E402
-from radar.gemini import (GEMINI_DEFAULT_MODEL, ENHANCE_MIN, enhance_idea,  # noqa: E402
-                          family_trend_report, pmids_for_idea)
+from radar.gemini import (ENHANCE_MIN, enhance_idea, family_trend_report,  # noqa: E402
+                          pmids_for_idea, resolve_model)
 from radar.judge import (BLOCKED_VERDICTS, JUDGE_PROMPT_VERSION, JUDGE_RUNS, build_panel,  # noqa: E402
                          cache_versions, evidence_summary, judge_panel, judgment_cache_key,
                          titles_for_idea)
@@ -408,7 +408,7 @@ def suggest_all(ideas, pool, trends, period, scope, creds, key, model, prev: dic
 
 def main(started: datetime):
     creds = NcbiCredentials(env("NCBI_API_KEY"), env("NCBI_TOOL_EMAIL"))
-    key, model = env("GEMINI_API_KEY"), env("GEMINI_MODEL") or GEMINI_DEFAULT_MODEL
+    key, model = env("GEMINI_API_KEY"), resolve_model(env("GEMINI_MODEL"))
     panel = build_panel(key, model, env("GEMINI_JUDGE_MODEL_B"), env("OPENAI_API_KEY"), env("OPENAI_JUDGE_MODEL"))
     previous = load_previous()
     if not creds.api_key:

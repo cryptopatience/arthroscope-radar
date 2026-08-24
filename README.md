@@ -250,7 +250,7 @@ gh release create corpus-2026-08-24 data/corpus/corpus-2026-08-24.json.gz   --ti
 
 | 환경변수 | 용도 |
 |---|---|
-| `GEMINI_JUDGE_MODEL_B` | 교차 검증용 두 번째 Gemini 모델. 비우면 `gemini-2.5-flash` |
+| `GEMINI_JUDGE_MODEL_B` | 교차 검증용 두 번째 Gemini 모델. 비우면 `gemini-3.6-flash` |
 | `OPENAI_API_KEY`, `OPENAI_JUDGE_MODEL` | 넣으면 다른 회사 모델까지 판정단에 들어갑니다 (기본 `gpt-4o`). 없으면 Gemini 두 모델로만 합의를 잽니다 |
 | `GEMINI_FORCE=1` | 요일과 무관하게 Gemini 단계를 강제 실행. 판정 로직을 바꾼 직후에 씁니다 |
 
