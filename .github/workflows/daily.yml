@@ -22,7 +22,9 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 캐시가 비면 Gemini 단계가 순차로 90분 가까이 돈다(판정 1건이 주 판정 5회 +
+    # 교차 1회로 60초 남짓, 판정만 40건). 모델을 바꾸면 캐시 키가 달라져 전부 새로 돈다.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
