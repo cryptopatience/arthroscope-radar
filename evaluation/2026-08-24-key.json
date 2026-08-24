@@ -1,0 +1,308 @@
+{
+ "seed": 20260824,
+ "date": "2026-08-24",
+ "commit": "eeb0d8a",
+ "items": {
+  "A": {
+   "id": "형평성::subgroup_재치환·전환 수술",
+   "selectedAsFinal": true,
+   "modelVerdict": "opportunity",
+   "stability": {
+    "runs": 5,
+    "agree": 5,
+    "rate": 1.0,
+    "verdicts": {
+     "opportunity": 5
+    },
+    "failed": 0
+   },
+   "consensus": "agree",
+   "reason": "재치환·전환 수술 환자군은 1차 수술 환자군과 임상적 특성 및 의료자원 소모량이 크게 달라 별도 분석이 필요합니다. 이 환자군에서 발생하는 의료 접근성이나 결과의 격차는 더 클 수 있으므로, 형평성 연구에서 이들을 간과하는 것은 중요한 잠재적 불평등을 놓치는 것입니다. 이 공백을 채우면 재수술이 필요한 특정 취약계층을 식별하고 이들의 예후를 개선하는 정책적 개입의 근거를 마련할 수 있습니다.",
+   "fieldStandard": "수술 이용률, 의뢰율, 대기시간, 보험·지역 격차",
+   "scores": {
+    "axes": {
+     "evidence_strength": 1,
+     "novelty": 2,
+     "clinical_importance": 3,
+     "methodological_advance": 4,
+     "feasibility": 4
+    },
+    "total": 16,
+    "penalty": 0,
+    "unscored": [],
+    "verdict": "opportunity",
+    "evidenceLevel": "중간",
+    "ineligible": ""
+   },
+   "priorArtDirect": 9
+  },
+  "B": {
+   "id": "로봇·내비게이션::subgroup_재치환·전환 수술",
+   "selectedAsFinal": true,
+   "modelVerdict": "opportunity",
+   "stability": {
+    "runs": 5,
+    "agree": 5,
+    "rate": 1.0,
+    "verdicts": {
+     "opportunity": 5
+    },
+    "failed": 0
+   },
+   "consensus": "agree",
+   "reason": "재치환 및 전환술은 일차 인공관절 치환술에 비해 기술적으로 더 어렵고 합병증 발생률이 높습니다. 정밀도 향상을 목표로 하는 로봇·내비게이션 기술은 이러한 고난도 수술에서 특히 유용할 수 있으나, 현재 문헌에서는 이 특정 환자군에 대한 검증이 부족합니다. 이 공백을 채우는 연구는 로봇 기술의 임상적 가치를 어려운 증례로 확장할 수 있는지 판단하는 데 중요합니다.",
+   "fieldStandard": "정렬 정확도, outlier 비율, 합병증, 수술 효율",
+   "scores": {
+    "axes": {
+     "evidence_strength": 3,
+     "novelty": 1,
+     "clinical_importance": 3,
+     "methodological_advance": 4,
+     "feasibility": 4
+    },
+    "total": 17,
+    "penalty": 0,
+    "unscored": [],
+    "verdict": "opportunity",
+    "evidenceLevel": "높음",
+    "ineligible": ""
+   },
+   "priorArtDirect": 13
+  },
+  "C": {
+   "id": "전방십자인대·반월상::cross_감염",
+   "selectedAsFinal": true,
+   "modelVerdict": "opportunity",
+   "stability": {
+    "runs": 5,
+    "agree": 5,
+    "rate": 1.0,
+    "verdicts": {
+     "opportunity": 5
+    },
+    "failed": 0
+   },
+   "consensus": "agree",
+   "reason": "전방십자인대 재건술이나 반월상 연골 봉합술 후 감염은 인대 및 연골의 실패로 이어질 수 있는 심각한 합병증입니다. 비록 발생률이 낮아 연구가 어렵더라도, 환자의 기능적 결과와 재수술 가능성에 미치는 영향이 매우 크기 때문에 예방 및 치료 전략에 대한 연구는 임상적으로 중요합니다.",
+   "fieldStandard": "IKDC/KOOS, graft·repair failure, 재수술, 안정성, 근력·기능검사, 스포츠 복귀",
+   "scores": {
+    "axes": {
+     "evidence_strength": 5,
+     "novelty": 1,
+     "clinical_importance": 4,
+     "methodological_advance": 4,
+     "feasibility": 3
+    },
+    "total": 19,
+    "penalty": 0,
+    "unscored": [],
+    "verdict": "opportunity",
+    "evidenceLevel": "높음",
+    "ineligible": ""
+   },
+   "priorArtDirect": 13
+  },
+  "D": {
+   "id": "AI·예측::direct_comparison",
+   "selectedAsFinal": false,
+   "modelVerdict": "structural",
+   "stability": {
+    "runs": 5,
+    "agree": 3,
+    "rate": 0.6,
+    "verdicts": {
+     "opportunity": 2,
+     "structural": 3
+    },
+    "failed": 0
+   },
+   "consensus": "agree",
+   "reason": "AI·예측 분야의 연구는 새로운 모델의 개발과 성능 검증(validation) 단계에 집중되어 있습니다. 따라서 현재 주된 관심사는 특정 모델이 임상적 '정답'에 대해 충분한 성능(예: AUC, calibration)을 보이는지, 그리고 외부 데이터셋에서도 그 성능이 유지되는지를 확인하는 것입니다. 두 개 이상의 모델이나 선택지를 직접 비교하는 연구는 이러한 개별 모델의 타당성이 충분히 입증된 후에야 활발해지는 경향이 있으므로, 비교 연구의 부족은 이 분야의 현재 발전 단계를 반영하는 구조적 특성입니다.",
+   "fieldStandard": "discrimination (AUC), calibration, external validation, clinical utility",
+   "scores": {
+    "axes": {
+     "evidence_strength": 2,
+     "novelty": 2,
+     "clinical_importance": 1,
+     "methodological_advance": 4,
+     "feasibility": 3
+    },
+    "total": 12,
+    "penalty": 0,
+    "unscored": [],
+    "verdict": "structural",
+    "evidenceLevel": "중간",
+    "ineligible": "구조적 공백으로 판정"
+   },
+   "priorArtDirect": 7
+  },
+  "E": {
+   "id": "AI·예측::clinical_utility",
+   "selectedAsFinal": true,
+   "modelVerdict": "opportunity",
+   "stability": {
+    "runs": 5,
+    "agree": 5,
+    "rate": 1.0,
+    "verdicts": {
+     "opportunity": 5
+    },
+    "failed": 0
+   },
+   "consensus": "agree",
+   "reason": "AI 예측 모델 연구는 기술적 성능 검증 단계를 지나 임상적 유용성을 입증해야 하는 단계에 접어들었습니다. 모델의 예측 정확도 향상이 실제 환자의 합병증 감소나 기능 개선 등으로 이어진다는 근거는 진료 지침을 바꾸고 기술을 임상에 도입하는 데 필수적입니다. 현재 이 연결고리에 대한 연구가 다른 분야에 비해 통계적으로 유의하게 부족하므로, 이는 중요한 연구 기회입니다.",
+   "fieldStandard": "discrimination (AUC), calibration, external validation, clinical utility",
+   "scores": {
+    "axes": {
+     "evidence_strength": 3,
+     "novelty": 1,
+     "clinical_importance": 4,
+     "methodological_advance": 3,
+     "feasibility": 3
+    },
+    "total": 16,
+    "penalty": 0,
+    "unscored": [],
+    "verdict": "opportunity",
+    "evidenceLevel": "높음",
+    "ineligible": ""
+   },
+   "priorArtDirect": 18
+  },
+  "F": {
+   "id": "감염::cross_스포츠 복귀",
+   "selectedAsFinal": true,
+   "modelVerdict": "opportunity",
+   "stability": {
+    "runs": 5,
+    "agree": 5,
+    "rate": 1.0,
+    "verdicts": {
+     "opportunity": 5
+    },
+    "failed": 0
+   },
+   "consensus": "agree",
+   "reason": "무릎 감염 연구의 일차적 목표는 감염의 박멸과 임플란트 생존율에 집중됩니다. 하지만 감염 치료가 성공적으로 끝난 후 환자의 최종적인 치료 성공은 기능적 회복에 달려있으며, 특히 활동적인 환자에게 스포츠 복귀는 매우 중요한 지표입니다. 이 두 성숙한 주제의 교차점에 연구가 거의 없다는 것은 감염 후 환자의 기능적 예후에 대한 이해를 높일 중요한 기회를 놓치고 있음을 시사합니다.",
+   "fieldStandard": "감염 박멸, 재감염률, 임플란트 생존",
+   "scores": {
+    "axes": {
+     "evidence_strength": 5,
+     "novelty": 2,
+     "clinical_importance": 4,
+     "methodological_advance": 4,
+     "feasibility": 3
+    },
+    "total": 20,
+    "penalty": 0,
+    "unscored": [],
+    "verdict": "opportunity",
+    "evidenceLevel": "높음",
+    "ineligible": ""
+   },
+   "priorArtDirect": 10
+  },
+  "G": {
+   "id": "임플란트·기술::prom_interpretation",
+   "selectedAsFinal": false,
+   "modelVerdict": "structural",
+   "stability": {
+    "runs": 5,
+    "agree": 4,
+    "rate": 0.8,
+    "verdicts": {
+     "structural": 4,
+     "opportunity": 1
+    },
+    "failed": 0
+   },
+   "consensus": "agree",
+   "reason": "임플란트·기술 연구의 핵심은 생존율, 재치환술, 방사선학적 안정성 등 객관적이고 장기적인 지표를 평가하는 것입니다. 환자보고결과(PROM)와 그 임상적 의미 해석(MCID 등)은 중요한 2차 결과이지만, 연구의 주된 목적은 아니므로 보고 빈도가 낮은 것은 이 분야의 구조적 특성입니다.",
+   "fieldStandard": "implant survival, revision, radiological loosening/migration, accuracy, device-related adverse events",
+   "scores": {
+    "axes": {
+     "evidence_strength": 2,
+     "novelty": 1,
+     "clinical_importance": 0,
+     "methodological_advance": 2,
+     "feasibility": 4
+    },
+    "total": 7,
+    "penalty": 2,
+    "unscored": [],
+    "verdict": "structural",
+    "evidenceLevel": "높음",
+    "ineligible": "구조적 공백으로 판정"
+   },
+   "priorArtDirect": 18
+  },
+  "H": {
+   "id": "전방십자인대·반월상::cross_로봇·내비게이션",
+   "selectedAsFinal": false,
+   "modelVerdict": "structural",
+   "stability": {
+    "runs": 5,
+    "agree": 5,
+    "rate": 1.0,
+    "verdicts": {
+     "structural": 5
+    },
+    "failed": 0
+   },
+   "consensus": "agree",
+   "reason": "전방십자인대 및 반월상 수술에서 로봇·내비게이션 기술은 아직 도입 초기 단계에 있습니다. 현재 연구의 초점은 터널 위치의 정확성이나 수술의 안전성 같은 기술적 타당성을 검증하는 데 맞춰져 있을 가능성이 높습니다. 따라서 장기적인 환자 결과나 임상적 효용성에 대한 연구가 축적되기에는 아직 이른 시점이므로, 이 공백은 연구 단계의 자연스러운 특성으로 보입니다.",
+   "fieldStandard": "IKDC/KOOS, graft·repair failure, 재수술, 안정성, 근력·기능검사, 스포츠 복귀",
+   "scores": {
+    "axes": {
+     "evidence_strength": 5,
+     "novelty": 1,
+     "clinical_importance": 1,
+     "methodological_advance": 3,
+     "feasibility": 3
+    },
+    "total": 13,
+    "penalty": 0,
+    "unscored": [],
+    "verdict": "structural",
+    "evidenceLevel": "높음",
+    "ineligible": "구조적 공백으로 판정"
+   },
+   "priorArtDirect": 13
+  },
+  "I": {
+   "id": "환자요인::prospective_design",
+   "selectedAsFinal": false,
+   "modelVerdict": "structural",
+   "stability": {
+    "runs": 5,
+    "agree": 3,
+    "rate": 0.6,
+    "verdicts": {
+     "opportunity": 2,
+     "structural": 3
+    },
+    "failed": 0
+   },
+   "consensus": "split",
+   "reason": "환자요인은 연구자가 무작위배정할 수 없는 내재적 특성입니다. 따라서 성별, 비만, 동반질환 등이 수술 결과에 미치는 영향을 보려면 후향적 코호트나 전향적 등록 연구 같은 관찰 연구에 의존할 수밖에 없습니다. 이 분야에서 전향적 연구나 무작위시험의 비율이 낮은 것은 연구 공백이 아니라 해당 주제의 본질적인 특성입니다.",
+   "fieldStandard": "위험도, 회복, 합병증, PROM",
+   "scores": {
+    "axes": {
+     "evidence_strength": 2,
+     "novelty": 1,
+     "clinical_importance": 0,
+     "methodological_advance": 5,
+     "feasibility": 3
+    },
+    "total": 11,
+    "penalty": 0,
+    "unscored": [],
+    "verdict": "structural",
+    "evidenceLevel": "낮음",
+    "ineligible": "구조적 공백으로 판정"
+   },
+   "priorArtDirect": 19
+  }
+ },
+ "cacheVersion": "p6.k2.c7.t4.r5"
+}
