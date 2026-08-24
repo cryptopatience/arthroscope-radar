@@ -1,0 +1,85 @@
+[
+ {
+  "at": "2026-08-24T02:10:08.661842+00:00",
+  "date": "2026-08-24",
+  "ok": true,
+  "seconds": 4632,
+  "collected": 5555,
+  "analyzed": 2028,
+  "withAbstract": 4477,
+  "totalAvailable": 5555,
+  "capped": false,
+  "journals": 10,
+  "ideas": 15,
+  "sizeMB": 2.43,
+  "ai": {
+   "ran": true,
+   "reason": "GEMINI_FORCE=1 로 강제 실행",
+   "model": "gemini-2.5-pro",
+   "judged": 40,
+   "suggested": 14,
+   "trends": 2,
+   "priorArt": 28,
+   "final": 5,
+   "failed": 0
+  },
+  "error": null
+ },
+ {
+  "at": "2026-08-23T15:11:16.246089+00:00",
+  "date": "2026-08-24",
+  "ok": true,
+  "seconds": 4591,
+  "collected": 5555,
+  "analyzed": 2028,
+  "withAbstract": 4477,
+  "totalAvailable": 5555,
+  "capped": false,
+  "journals": 10,
+  "ideas": 14,
+  "sizeMB": 2.31,
+  "ai": {
+   "ran": true,
+   "reason": "GEMINI_FORCE=1 로 강제 실행",
+   "model": "gemini-2.5-pro",
+   "judged": 27,
+   "suggested": 14,
+   "trends": 2,
+   "priorArt": 27,
+   "final": 5,
+   "failed": 0
+  },
+  "error": null
+ },
+ {
+  "at": "2026-08-23T13:04:46.499120+00:00",
+  "date": "2026-08-23",
+  "ok": true,
+  "seconds": 2778,
+  "collected": 5555,
+  "analyzed": 2028,
+  "withAbstract": 4477,
+  "totalAvailable": 5555,
+  "capped": false,
+  "journals": 10,
+  "ideas": 8,
+  "sizeMB": 1.91,
+  "ai": {
+   "ran": true,
+   "reason": "GEMINI_FORCE=1 로 강제 실행",
+   "model": "gemini-2.5-pro",
+   "judged": 15,
+   "suggested": 10,
+   "trends": 2,
+   "failed": 0
+  },
+  "error": null
+ },
+ {
+  "at": "2026-08-23T13:03:09.943733+00:00",
+  "date": "2026-08-23",
+  "ok": false,
+  "seconds": 0,
+  "error": "'cp949' codec can't encode character '\\u2013' in position 22: illegal multibyte sequence"
+ }
+]
