@@ -756,6 +756,11 @@ else:
 
 shown = saved if show_saved else ideas
 plan = None if show_saved else plan_ideas(shown)
+# 계열 목록은 AI 판정을 돌리지 않는다(호출 비용). 판정 블록이 통째로 비면 이유를 모른 채
+# "판정이 실패했나" 싶으므로, 빈 화면 대신 그렇게 설계됐다고 밝힌다.
+if kind == "family" and not show_saved and st.session_state.snapshot and not _scoped("judgments"):
+    st.caption("이 계열 목록에는 AI 판정·고도화가 없습니다 — 판정은 **무릎 전체** 범위에서만 돌립니다. "
+               "판정 근거와 고도화된 계획서를 보시려면 위에서 전체를 선택하세요.")
 gemini_key = secret("GEMINI_API_KEY")
 gemini_model = resolve_model(secret("GEMINI_MODEL"))
 

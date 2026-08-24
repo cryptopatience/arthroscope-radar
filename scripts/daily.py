@@ -45,6 +45,15 @@ IDEA_ABSTRACTS = 32
 # 세 배가 되는데, 그중 열 개는 어차피 전역 제약에서 떨어진다.
 TREND_ABSTRACTS = 30
 GEMINI_WEEKDAY = 4      # 0=월 … 4=금. 초록 수집은 매일, Gemini 분석은 이 요일에만.
+# 계열별(관절성형·관절경) 목록까지 판정·고도화할지. 끄면 "무릎 전체" 목록만 만든다.
+#
+# 한 번 실행에 256 호출이 나가는데 그중 150이 계열 두 개의 판정이었다. 아이디어
+# 하나를 판정하는 방식(주 판정자 5회 + 교차 1회)은 그대로 두고 목록 수만 줄인다 —
+# 반복 횟수나 교차 검증을 깎으면 안정성·합의 신호 자체가 망가지지만, 목록을 줄이는
+# 것은 받아보는 범위가 좁아질 뿐 판정의 엄밀성과 무관하다.
+#
+# 계열 동향 리포트(2 호출)는 유지한다. 값이 싸고 앱의 계열 화면이 그것으로 산다.
+AI_FAMILY_SCOPES = False
 SNAPSHOT = Path("data/daily.json")
 # 실행 기록. 스냅샷은 "마지막 결과"만 담아서, 어제 수집이 돌긴 했는지·며칠째 조용한지를
 # 알 수가 없다. 그래서 실행마다 한 줄씩 남기고 앱 사이드바가 그대로 읽는다.
@@ -499,7 +508,7 @@ def main(started: datetime):
                                          period, "무릎 전체", creds, key, model,
                                          (prev_suggestions.get("all") or {}))
 
-        for fam, label in FAMILY_LABEL.items():
+        for fam, label in FAMILY_LABEL.items() if AI_FAMILY_SCOPES else []:
             fam_ideas = analysis["ideasByFamily"].get(fam) or []
             if not fam_ideas:
                 continue
@@ -514,6 +523,8 @@ def main(started: datetime):
                                            analysis["trendsByFamily"].get(fam, []),
                                            period, label, creds, key, model,
                                            (prev_suggestions.get(fam) or {}))
+        if not AI_FAMILY_SCOPES:
+            log("계열별 판정·고도화 건너뜀 (AI_FAMILY_SCOPES=False) — 무릎 전체 목록만 만듭니다.")
         ai_refreshed_at = now
     else:
         # 초록은 오늘 것으로 갱신하되, AI 결과는 지난 것을 그대로 들고 간다.
