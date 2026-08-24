@@ -10,7 +10,7 @@ analysis.py에서 분리한 이유는 두 가지다.
 from __future__ import annotations
 
 # 용어 사전을 고치면 올린다.
-KEYWORD_DICT_VERSION = "1"
+KEYWORD_DICT_VERSION = "2"
 # 분야별 기준 결과변수(CANONICAL_OUTCOMES)를 고치면 올린다.
 CANONICAL_OUTCOME_VERSION = "7"
 

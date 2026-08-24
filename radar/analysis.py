@@ -72,7 +72,11 @@ TOPICS = [
     {"label": "PROM·기대치", "terms": list(PROM_INSTRUMENTS) + ["quality of life"]},
     {"label": "정렬·생체역학", "terms": ["alignment", "kinematic*", "biomechanic*", "balance", "gait", "range of motion", "component position"]},
     {"label": "외래·회복", "terms": ["outpatient", "same-day", "enhanced recovery", "length of stay", "discharge", "opioid", "rehabilitation"]},
-    {"label": "비용·보건정책", "terms": ["cost", "economic", "value", "bundled payment", "health care utilization", "resource utilization"]},
+    # "value" 하나로 두면 prognostic value·native values·p-value까지 비용 연구로 잡힌다.
+    # 초록 표본에서 43편 중 대부분이 그런 오탐이었다.
+    {"label": "비용·보건정책", "terms": ["cost", "economic", "value-based", "value based",
+                                    "high-value care", "low-value care", "cost-effective*",
+                                    "bundled payment", "health care utilization", "resource utilization"]},
     # 형평성과 환자요인은 묻는 것이 다르다. 앞은 "피할 수 있는 격차"(소득·보험·지역·언어),
     # 뒤는 "예후를 가르는 환자 특성"(나이·비만·동반질환)이다. 기준 결과변수도 다르므로
     # 한 주제로 두면 판정이 둘 사이에서 흔들린다.
@@ -83,8 +87,15 @@ TOPICS = [
     {"label": "환자요인", "terms": ["frailty", "frail", "obesity", "obese", "body mass index",
                                  "diabet*", "comorbidit*", "smoking", "malnutrition",
                                  "sex difference", "sarcopenia", "osteoporo*"]},
-    {"label": "임플란트·기술", "terms": ["implant", "bearing", "cementless", "fixation", "polyethylene", "sensor", "wearable", "smartphone"]},
-    {"label": "스포츠 복귀", "terms": ["return to sport", "return to play", "athlete", "sports participation", "performance"]},
+    # "bearing"은 40편 중 12편이 weight-bearing(하중)이었다. 임플란트 베어링만 남긴다.
+    {"label": "임플란트·기술", "terms": ["implant", "fixed-bearing", "mobile-bearing", "bearing surface",
+                                   "cementless", "fixation", "polyethylene", "sensor", "wearable", "smartphone"]},
+    # "performance"는 스포츠 수행능력과 진단 성능·모델 성능·임플란트 성능을 함께 잡는다.
+    # 52편 중 "clinical performance of a medial pivot", "diagnostic performance of physical
+    # examination", "LLM performance" 같은 것이 섞여 있었다.
+    {"label": "스포츠 복귀", "terms": ["return to sport", "return to play", "athlete", "sports participation",
+                                  "athletic performance", "sports performance", "return to performance",
+                                  "level of performance", "performance level"]},
     {"label": "연골·생물학", "terms": ["cartilage", "biologic*", "platelet-rich plasma", "stem cell", "stromal vascular", "bone marrow", "scaffold"]},
     {"label": "전방십자인대·반월상", "terms": ["anterior cruciate", "acl", "aclr", "menisc*", "root repair"]},
     {"label": "회전근개·어깨", "terms": ["rotator cuff", "shoulder", "labral", "biceps tendon"]},
