@@ -16,6 +16,7 @@ import streamlit as st
 
 from radar import config
 from radar.analysis import FAMILIES, FAMILY_ORDER, JOURNAL_ORDER, JOURNALS, AnalysisError, run_analysis
+from radar.cache import cache_key, get as cache_get, load as cache_load, put as cache_put
 from radar.gemini import ENHANCE_MIN, enhance_idea, pmids_for_idea, resolve_model
 from radar.judge import VERDICT_LABEL, evidence_summary
 from radar.selection import PROM_SUBTYPES, gap_category, select
@@ -287,6 +288,22 @@ def suggestion_for(idea_id: str) -> dict | None:
     if idea_id in st.session_state.enhanced:
         return st.session_state.enhanced[idea_id]
     return _scoped("suggestions").get(idea_id)
+
+
+def default_scope(snap: dict) -> tuple:
+    """첫 화면을 판정이 붙어 있는 범위로 연다.
+
+    어느 범위를 판정할지는 야간 작업 설정이 정한다(무릎 전체 -> 계열별로 옮겼다).
+    기본을 하나로 고정해 두면 그 설정을 바꾼 날 첫 화면이 통째로 미판정 목록이 된다.
+    """
+    stored = snap.get("judgments") or {}
+    if stored.get("all"):
+        return ("all", None)
+    by_family = (snap.get("analysis") or {}).get("ideasByFamily") or {}
+    for fam in FAMILY_ORDER:
+        if stored.get(fam) and by_family.get(fam):
+            return ("family", fam)
+    return ("all", None)
 
 
 def scope_key() -> str:
@@ -598,9 +615,11 @@ with st.sidebar:
     focus = st.text_input("연구 초점 (선택)", placeholder="예: UKA conversion, rotator cuff, PROM")
     run_clicked = st.button("분석 시작 ↗", type="primary", width="stretch")
     creds = credentials()
+    cached_enhancements = len(cache_load())
     st.caption("NCBI E-utilities 기반 · 검색된 초록 전량 수집"
                + (" · API 키 적용" if creds.api_key else "")
-               + (" · Gemini 고도화 가능" if secret("GEMINI_API_KEY") else " · GEMINI_API_KEY 없음"))
+               + (" · Gemini 고도화 가능" if secret("GEMINI_API_KEY") else " · GEMINI_API_KEY 없음")
+               + (f" · 고도화 결과 {cached_enhancements}건 재사용 대기" if cached_enhancements else ""))
     st.divider()
     render_run_log()
     st.divider()
@@ -618,6 +637,7 @@ if not st.session_state.booted:
     if snap:
         st.session_state.snapshot = snap
         st.session_state.analysis = snap["analysis"]
+        st.session_state.scope = default_scope(snap)
     else:
         with st.spinner("네 개 저널의 신호를 읽고 있습니다 — 검색 → 초록 구조화 → 주제 분류 → 연구 공백 조합"):
             run(selected, (today - timedelta(days=365)).isoformat(), today.isoformat(), "")
@@ -756,11 +776,16 @@ else:
 
 shown = saved if show_saved else ideas
 plan = None if show_saved else plan_ideas(shown)
-# 계열 목록은 AI 판정을 돌리지 않는다(호출 비용). 판정 블록이 통째로 비면 이유를 모른 채
-# "판정이 실패했나" 싶으므로, 빈 화면 대신 그렇게 설계됐다고 밝힌다.
-if kind == "family" and not show_saved and st.session_state.snapshot and not _scoped("judgments"):
-    st.caption("이 계열 목록에는 AI 판정·고도화가 없습니다 — 판정은 **무릎 전체** 범위에서만 돌립니다. "
-               "판정 근거와 고도화된 계획서를 보시려면 위에서 전체를 선택하세요.")
+# 모든 범위를 판정하지는 않는다(호출 비용). 판정 블록이 통째로 비면 이유를 모른 채
+# "판정이 실패했나" 싶으므로, 빈 화면 대신 그렇게 설계됐다고 밝히고 어디로 가면
+# 되는지 알려준다. 판정하는 범위는 야간 작업 설정에 따라 바뀌므로 스냅샷을 보고 정한다.
+if not show_saved and st.session_state.snapshot and not _scoped("judgments"):
+    stored = st.session_state.snapshot.get("judgments") or {}
+    where = ["무릎 전체"] if stored.get("all") else []
+    where += [FAMILIES[f]["short"] for f in FAMILY_ORDER if stored.get(f)]
+    if where:
+        st.caption(f"이 목록에는 AI 판정·고도화가 없습니다 — 판정은 **{' · '.join(where)}** 범위에서만 돌립니다. "
+                   "판정 근거와 고도화된 계획서를 보시려면 위에서 그 범위를 선택하세요.")
 gemini_key = secret("GEMINI_API_KEY")
 gemini_model = resolve_model(secret("GEMINI_MODEL"))
 
@@ -799,7 +824,8 @@ def render_idea(n: int, idea: dict):
             st.rerun()
         if not show_saved:
             # 판정과 무관하게 열어 둔다. 판정은 참고 의견이고, 반대해 보고 싶은 사람도 있다.
-            label = "✦ 다시 고도화" if suggestion_for(idea["id"]) else "✦ AI로 고도화"
+            redo = suggestion_for(idea["id"]) is not None
+            label = "✦ 다시 고도화" if redo else "✦ AI로 고도화"
             if c2.button(label, key=f"enh_{idea['id']}", width="stretch", disabled=not gemini_key,
                          help=None if gemini_key else "GEMINI_API_KEY를 설정하면 사용할 수 있습니다."):
                 pool = [a for a in analysis["articles"] if in_scope(a)]
@@ -807,14 +833,26 @@ def render_idea(n: int, idea: dict):
                 if len(pmids) < ENHANCE_MIN:
                     st.session_state.enhance_error[idea["id"]] = f"근거 초록이 {len(pmids)}편뿐이라 고도화할 수 없습니다."
                 else:
-                    with st.spinner("근거 초록을 읽고 Gemini가 구체화하는 중…"):
-                        try:
-                            st.session_state.enhanced[idea["id"]] = enhance_idea(
-                                idea, pmids, active_trends, scope_label, f"{analysis['dateFrom']}–{analysis['dateTo']}",
-                                credentials(), gemini_key, gemini_model)
-                            st.session_state.enhance_error.pop(idea["id"], None)
-                        except Exception as error:
-                            st.session_state.enhance_error[idea["id"]] = str(error) or "고도화 중 오류가 발생했습니다."
+                    # 세션 상태는 새로고침 한 번에 사라진다. 그래서 같은 카드를 다시 눌러도
+                    # Gemini가 다시 불렸다. 열쇠(아이디어·범위·근거 초록·모델)가 같으면 답도
+                    # 같으니 파일에서 꺼내 쓴다. "다시 고도화"는 새 답을 보려고 누르는 것이라
+                    # 그때만 건너뛴다.
+                    ck = cache_key("idea", idea["id"], scope_label, pmids, gemini_model)
+                    hit = None if redo else cache_get(ck)
+                    if hit:
+                        st.session_state.enhanced[idea["id"]] = {**hit, "fromCache": True}
+                        st.session_state.enhance_error.pop(idea["id"], None)
+                    else:
+                        with st.spinner("근거 초록을 읽고 Gemini가 구체화하는 중…"):
+                            try:
+                                result = enhance_idea(
+                                    idea, pmids, active_trends, scope_label, f"{analysis['dateFrom']}–{analysis['dateTo']}",
+                                    credentials(), gemini_key, gemini_model)
+                                cache_put(ck, result)
+                                st.session_state.enhanced[idea["id"]] = result
+                                st.session_state.enhance_error.pop(idea["id"], None)
+                            except Exception as error:
+                                st.session_state.enhance_error[idea["id"]] = str(error) or "고도화 중 오류가 발생했습니다."
                 st.rerun()
 
         if st.session_state.enhance_error.get(idea["id"]):
@@ -824,6 +862,8 @@ def render_idea(n: int, idea: dict):
             st.error(f"AI 제안 없음 — {sug['error']}")
         elif sug:
             meta = f"**AI 제안** · {sug.get('model')} · 초록 {sug.get('abstractsUsed')}편 참조"
+            if sug.get("fromCache"):
+                meta += " · 저장된 결과 재사용 (호출 없음)"
             if sug.get("droppedCitations"):
                 meta += f" · 목록에 없던 인용 {sug['droppedCitations']}건 제거"
             if idea["id"] not in st.session_state.enhanced and snap:

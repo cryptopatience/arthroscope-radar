@@ -914,6 +914,31 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
 
     # --- D9. 교차 공백 -----------------------------------------------------
     # 카테고리는 두 번째 축이 무엇이냐로 정한다. 교차 자체는 공백의 종류가 아니다.
+    #
+    # 기대 편수는 계열 안에서 따로 구해 합친다. 두 계열은 다루는 주제가 갈린다 —
+    # 실측으로 스포츠 복귀는 98%가 관절경, 감염은 82%가 관절성형이다. 두 계열을 한
+    # 덩어리로 놓고 "우연히 함께 나올 편수"를 재면, 서로 다른 계열에 사는 주제쌍은
+    # 언제나 거대한 공백으로 나온다. 인공관절이 없는 환자에게 인공관절 감염이 안
+    # 생기는 것을 연구 공백이라고 부르는 셈이다. 실제로 그렇게 만들어진 후보 중
+    # 두 건은 전문가 눈가림 평가에서 structural로 채점됐다.
+    #
+    # 바로 아래 관절 가드(TOPIC_JOINT)와 같은 취지인데, 이쪽은 이진 차단이 아니라
+    # 기대치 자체를 고쳐서 정도에 따라 반영되게 한다 — 계열 안에서 일어나는 진짜
+    # 교차(임플란트·기술 × 비용·보건정책 같은)는 그대로 살아남아야 한다.
+    # 범위가 한 계열뿐이면(계열별·저널별 목록) 항이 하나라 옛 식과 같아진다.
+    fam_size: dict[str, int] = {}
+    fam_topic: dict[str, dict[str, int]] = {}
+    for a in articles:
+        fam = JOURNALS[a.journalKey]["family"]
+        fam_size[fam] = fam_size.get(fam, 0) + 1
+        counts = fam_topic.setdefault(fam, {})
+        for t in a.topics:
+            counts[t] = counts.get(t, 0) + 1
+
+    def cross_expected(first_label: str, second_label: str) -> float:
+        return sum(fam_topic[f].get(first_label, 0) * fam_topic[f].get(second_label, 0) / n
+                   for f, n in fam_size.items() if n)
+
     for i in range(len(ranked)):
         for j in range(i + 1, len(ranked)):
             first, second = ranked[i], ranked[j]
@@ -924,7 +949,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
             if len(pool_first) < IDEA_MIN_POOL or len(pool_second) < IDEA_MIN_POOL:
                 continue
             observed = [a for a in pool_first if second.label in a.topics]
-            expected = len(pool_first) * len(pool_second) / total
+            expected = cross_expected(first.label, second.label)
             if expected < 3 or len(observed) >= expected * GAP_RATIO:
                 continue
             cross_rest = [a for a in articles if first.label not in a.topics]
@@ -936,7 +961,7 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
                 first.label, f"cross_{second.label}", category, "cross",
                 title=f"{with_particle(first.label, '과', '와')} {with_particle(second.label, '을', '를')} 함께 보면 무엇이 달라지는가?",
                 rationale=(f"{first.label} {len(pool_first)}편, {second.label} {len(pool_second)}편이 각각 축적되어 있는데 둘을 함께 다룬 초록은 "
-                           f"{len(observed)}편입니다(두 주제 크기대로면 {round(expected)}편). 각자 성숙한 두 흐름이 아직 만나지 않은 지점이라, "
+                           f"{len(observed)}편입니다(같은 계열 안에서 두 주제 크기대로면 {round(expected)}편). 각자 성숙한 두 흐름이 아직 만나지 않은 지점이라, "
                            "교차 지점에서 새 질문이 나오기 쉽습니다."),
                 pico=f"{first.label} 대상 환자에서, {second.label} 관련 인자를 함께 측정했을 때 "
                      f"{_primary(canonical(first.label), '결과', 2)} 예측이 개선되는지 평가",

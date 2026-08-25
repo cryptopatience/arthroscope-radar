@@ -27,6 +27,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 from radar import config  # noqa: E402
 from radar.analysis import JOURNAL_ORDER, JOURNALS, run_analysis  # noqa: E402
+from radar.cache import cache_key, reuse  # noqa: E402
 from radar.gemini import (ENHANCE_MIN, enhance_idea, family_trend_report,  # noqa: E402
                           pmids_for_idea, resolve_model)
 from radar.judge import (BLOCKED_VERDICTS, JUDGE_PROMPT_VERSION, JUDGE_RUNS, build_panel,  # noqa: E402
@@ -45,15 +46,22 @@ IDEA_ABSTRACTS = 32
 # 세 배가 되는데, 그중 열 개는 어차피 전역 제약에서 떨어진다.
 TREND_ABSTRACTS = 30
 GEMINI_WEEKDAY = 4      # 0=월 … 4=금. 초록 수집은 매일, Gemini 분석은 이 요일에만.
-# 계열별(관절성형·관절경) 목록까지 판정·고도화할지. 끄면 "무릎 전체" 목록만 만든다.
+# 어느 목록을 판정·고도화할지. 판정이 비용의 70%라 이 두 스위치가 비용을 정한다.
 #
-# 한 번 실행에 256 호출이 나가는데 그중 150이 계열 두 개의 판정이었다. 아이디어
-# 하나를 판정하는 방식(주 판정자 5회 + 교차 1회)은 그대로 두고 목록 수만 줄인다 —
-# 반복 횟수나 교차 검증을 깎으면 안정성·합의 신호 자체가 망가지지만, 목록을 줄이는
-# 것은 받아보는 범위가 좁아질 뿐 판정의 엄밀성과 무관하다.
+# 2026-08-25에 뒤집었다. 이전에는 "무릎 전체" 목록만 판정했는데(계열 판정을 꺼서
+# 256 -> 97 호출로 줄인 결과였다), 그러다 보니 **판정이 붙는 유일한 목록이 하필
+# 두 계열을 섞은 쪽**이 됐다. 섞인 풀에서는 관절경에만 사는 주제와 관절성형에만
+# 사는 주제가 교차 공백으로 짝지어진다 — 그렇게 만들어진 후보 두 건이 전문가
+# 눈가림 평가에서 structural로 채점됐다.
 #
-# 계열 동향 리포트(2 호출)는 유지한다. 값이 싸고 앱의 계열 화면이 그것으로 산다.
-AI_FAMILY_SCOPES = False
+# 계열 안에서 뽑으면 그 조합이 구조적으로 생기지 않는다. 판정 대상 수는 계열당
+# 6개 x 2 = 12개로 전체 목록 10개와 비슷한데, 실측 최종 결과물은 5개에서 8개로
+# 늘었다(관절성형 5 + 관절경 3).
+#
+# 무릎 전체 목록은 계속 만들되 판정하지 않는다. 앱이 규칙 기반 점수로 그대로
+# 보여주고, 판정·제안을 보려면 계열을 고르라고 안내한다.
+AI_FAMILY_SCOPES = True
+AI_ALL_SCOPE = False
 SNAPSHOT = Path("data/daily.json")
 # 실행 기록. 스냅샷은 "마지막 결과"만 담아서, 어제 수집이 돌긴 했는지·며칠째 조용한지를
 # 알 수가 없다. 그래서 실행마다 한 줄씩 남기고 앱 사이드바가 그대로 읽는다.
@@ -168,7 +176,8 @@ def write_manifest(analysis: dict, judgments: dict, prior: dict, selections: dic
         "rawJudgmentsSaved": bool(judgments),
         "counts": {"articles": analysis["analyzed"], "candidates": len(analysis["ideas"]),
                    "judgments": sum(len(rows) for rows in judgments.values()), "priorArt": len(prior),
-                   "final": len((selections.get("all") or {}).get("final") or [])},
+                   # 판정 범위가 여럿이면 전부 더한다. "all"만 세면 계열별로 돌린 날 0이 된다.
+                   "final": sum(len(v.get("final") or []) for v in selections.values())},
     }
     MANIFEST.parent.mkdir(parents=True, exist_ok=True)
     MANIFEST.write_text(json.dumps(payload, ensure_ascii=False, indent=1) + "\n", "utf-8")
@@ -176,11 +185,11 @@ def write_manifest(analysis: dict, judgments: dict, prior: dict, selections: dic
 
 
 def report_summary(analysis: dict, all_judgments: dict, prior: dict, selections: dict):
-    """고정 실행 결과 한 장. 전문가 평가 전에 이 숫자를 먼저 확정한다."""
-    ideas = analysis["ideas"]
-    judgments = all_judgments.get("all") or {}      # 요약은 전역 범위 기준
-    picked = selections.get("all") or {}
-    scores = picked.get("scores") or {}
+    """고정 실행 결과 한 장. 전문가 평가 전에 이 숫자를 먼저 확정한다.
+
+    판정이 붙은 범위마다 한 단락씩 낸다. 무릎 전체만 판정하던 때는 단락이 하나였는데,
+    판정을 계열별로 돌리기로 하면서 "all"이 비어 요약이 통째로 미판정으로 나왔다.
+    """
     line = "─" * 62
     out = [line, "고정 실행 요약", line]
 
@@ -194,56 +203,71 @@ def report_summary(analysis: dict, all_judgments: dict, prior: dict, selections:
     for label, count in clusters.most_common():
         out.append(f"    {label:20} {count:5}")
 
-    out.append("")
-    out.append(f"감지된 clusterId × gapId: {len(ideas)}개")
-    for idea in ideas:
-        verdict = (judgments.get(idea["id"]) or {}).get("verdict", "미판정")
-        score = scores.get(idea["id"]) or {}
-        pa = prior.get(idea["id"]) or {}
-        direct = pa.get("matchCount")
-        out.append(f"    [{verdict:11}] {idea['id']:48} "
-                   f"{idea['gapCategory']:31} 점수 {score.get('total', '-'):>3} "
-                   f"선행 direct {direct if direct is not None else '미측정'}")
-
-    verdicts = collections.Counter((judgments.get(i["id"]) or {}).get("verdict", "미판정") for i in ideas)
-    out.append("")
-    out.append(f"판정 분포: {dict(verdicts)}")
-
     ok = [p for p in prior.values() if isinstance(p, dict) and not p.get("error")]
     if ok:
-        scoped = [prior[i["id"]] for i in ideas if isinstance(prior.get(i["id"]), dict)
-                  and not prior[i["id"]].get("error")]
-        out.append(f"선행연구(전역 후보 {len(scoped)}개): "
-                   f"direct {sum(p.get('matchCount') or 0 for p in scoped)} · "
-                   f"adjacent {sum(p.get('adjacentCount') or 0 for p in scoped)} · "
-                   f"background {sum(p.get('backgroundCount') or 0 for p in scoped)}")
-        out.append(f"  (계열 포함 전체 검증 {len(ok)}건 / 대상 {len(prior)}건, 실패 {len(prior) - len(ok)}건)")
+        out.append("")
+        out.append(f"선행연구 검증 {len(ok)}건 / 대상 {len(prior)}건 (실패 {len(prior) - len(ok)}건)")
 
-    final_ids = picked.get("final") or []
-    final = [i for i in ideas if i["id"] in final_ids]
-    eligible = [i for i in ideas if not (scores.get(i["id"]) or {}).get("ineligible")]
-    prom = [i for i in final if i.get("outcomeSubtype") in ("prom", "prom_interpretation")]
-    cats = collections.Counter(i["gapCategory"] for i in final)
-    out.append("")
-    out.append(f"자격 통과 {len(eligible)}개 → 최종 선정 {len(final)}개 "
-               f"(조합 {picked.get('combinationsChecked', 0):,}가지 탐색)")
-    out.append(f"PROM 아이디어 {len(prom)}개 (상한 {config.MAX_PROM_IDEAS})")
-    out.append(f"카테고리 분산 {len(cats)}종: {dict(cats)}")
-    out.append(f"중복 제거 {len(picked.get('duplicates') or [])}개 · "
-               f"차단 {len(picked.get('blocked') or [])}개 · "
-               f"검증 대기 {len(picked.get('provisional') or [])}개")
+    scoped = [(k, v) for k, v in all_judgments.items() if v]
+    if not scoped:
+        out.append("")
+        out.append("판정된 범위가 없습니다 (Gemini를 돌리지 않았거나 전부 실패).")
+    for scope_key, judgments in scoped:
+        label = "무릎 전체" if scope_key == "all" else FAMILY_LABEL.get(scope_key, scope_key)
+        ideas = (analysis["ideas"] if scope_key == "all"
+                 else analysis["ideasByFamily"].get(scope_key) or [])
+        picked = selections.get(scope_key) or {}
+        scores = picked.get("scores") or {}
 
-    unmeasured = [i["id"] for i in ideas if "novelty" in ((scores.get(i["id"]) or {}).get("unscored") or [])]
+        out.append("")
+        out.append(line)
+        out.append(f"[{label}] 감지된 clusterId × gapId: {len(ideas)}개")
+        for idea in ideas:
+            verdict = (judgments.get(idea["id"]) or {}).get("verdict", "미판정")
+            score = scores.get(idea["id"]) or {}
+            pa = prior.get(idea["id"]) or {}
+            direct = pa.get("matchCount")
+            out.append(f"    [{verdict:11}] {idea['id']:48} "
+                       f"{idea['gapCategory']:31} 점수 {score.get('total', '-'):>3} "
+                       f"선행 direct {direct if direct is not None else '미측정'}")
+
+        verdicts = collections.Counter((judgments.get(i["id"]) or {}).get("verdict", "미판정") for i in ideas)
+        out.append(f"판정 분포: {dict(verdicts)}")
+
+        scoped_prior = [prior[i["id"]] for i in ideas if isinstance(prior.get(i["id"]), dict)
+                        and not prior[i["id"]].get("error")]
+        if scoped_prior:
+            out.append(f"선행연구(후보 {len(scoped_prior)}개): "
+                       f"direct {sum(p.get('matchCount') or 0 for p in scoped_prior)} · "
+                       f"adjacent {sum(p.get('adjacentCount') or 0 for p in scoped_prior)} · "
+                       f"background {sum(p.get('backgroundCount') or 0 for p in scoped_prior)}")
+
+        final_ids = picked.get("final") or []
+        final = [i for i in ideas if i["id"] in final_ids]
+        eligible = [i for i in ideas if not (scores.get(i["id"]) or {}).get("ineligible")]
+        prom = [i for i in final if i.get("outcomeSubtype") in ("prom", "prom_interpretation")]
+        cats = collections.Counter(i["gapCategory"] for i in final)
+        out.append(f"자격 통과 {len(eligible)}개 → 최종 선정 {len(final)}개 "
+                   f"(조합 {picked.get('combinationsChecked', 0):,}가지 탐색)")
+        out.append(f"PROM 아이디어 {len(prom)}개 (상한 {config.MAX_PROM_IDEAS}) · "
+                   f"카테고리 분산 {len(cats)}종: {dict(cats)}")
+        out.append(f"중복 제거 {len(picked.get('duplicates') or [])}개 · "
+                   f"차단 {len(picked.get('blocked') or [])}개 · "
+                   f"검증 대기 {len(picked.get('provisional') or [])}개")
+
+        unmeasured = [i["id"] for i in ideas if "novelty" in ((scores.get(i["id"]) or {}).get("unscored") or [])]
+        out.append(f"독창성 미측정 {len(unmeasured)}개")
+
+        out.append("최종 아이디어:")
+        for n, idea in enumerate(final, 1):
+            score = scores.get(idea["id"]) or {}
+            out.append(f"  {n}. [{idea['gapCategory']}] {idea['title']}")
+            out.append(f"     {idea['id']} · 점수 {score.get('total')} · 축 {score.get('axes')}")
+            out.append(f"     1차 결과: {idea['primaryEndpoint']}")
+
     errors = [k for k, v in prior.items() if isinstance(v, dict) and v.get("error")]
-    out.append(f"독창성 미측정 {len(unmeasured)}개 · 선행연구 오류 {len(errors)}개")
-
-    out.append("")
-    out.append("최종 아이디어:")
-    for n, idea in enumerate(final, 1):
-        score = scores.get(idea["id"]) or {}
-        out.append(f"  {n}. [{idea['gapCategory']}] {idea['title']}")
-        out.append(f"     {idea['id']} · 점수 {score.get('total')} · 축 {score.get('axes')}")
-        out.append(f"     1차 결과: {idea['primaryEndpoint']}")
+    out.append(line)
+    out.append(f"선행연구 오류 {len(errors)}개")
     out.append(line)
     for row in out:
         log(row)
@@ -274,18 +298,6 @@ def append_run(entry: dict):
         previous = []
     RUN_LOG.parent.mkdir(parents=True, exist_ok=True)
     RUN_LOG.write_text(json.dumps(([entry] + previous)[:RUN_LOG_KEEP], ensure_ascii=False, indent=1) + "\n", "utf-8")
-
-
-def cache_key(kind: str, ident: str, scope: str, pmids: list[str], model: str) -> str:
-    """같은 아이디어에 같은 근거 초록·같은 모델이면 답도 같다. 그러면 다시 부르지 않는다."""
-    raw = "|".join([kind, ident, scope, model, *sorted(pmids)])
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
-
-
-def reuse(cached: dict | None, key: str) -> dict | None:
-    if isinstance(cached, dict) and cached.get("cacheKey") == key and not cached.get("error"):
-        return cached
-    return None
 
 
 def gemini_day(today: date, previous: dict) -> tuple[bool, str]:
@@ -489,24 +501,27 @@ def main(started: datetime):
                 trend_reports[fam] = {"error": str(error) or "동향 분석 실패"}
                 log(f"동향 분석 실패 — {fam}: {error}")
 
-        log(f"공백 판정 — 무릎 전체 (판정단 {', '.join(j.name for j in panel)} · 주 모델 {JUDGE_RUNS}회 반복)")
         # 범위별로 따로 담는다. 아이디어 id는 범위가 달라도 같으므로, 한 사전에 부으면
         # 계열 판정이 전역 판정을 덮어쓴다(실제로 40건 중 13건이 덮어써졌다).
         # 판정 프롬프트에 scope가 들어가므로 둘은 서로 다른 판정이다.
-        judgments["all"] = judge_all(analysis["ideas"], analysis["articles"], "무릎 전체", period,
-                                     panel, (prev_judgments.get("all") or {}))
-        counts = collections.Counter((judgments["all"].get(i["id"]) or {}).get("verdict", "실패")
-                                     for i in analysis["ideas"])
-        log(f"판정 결과 {dict(counts)}")
+        if AI_ALL_SCOPE:
+            log(f"공백 판정 — 무릎 전체 (판정단 {', '.join(j.name for j in panel)} · 주 모델 {JUDGE_RUNS}회 반복)")
+            judgments["all"] = judge_all(analysis["ideas"], analysis["articles"], "무릎 전체", period,
+                                         panel, (prev_judgments.get("all") or {}))
+            counts = collections.Counter((judgments["all"].get(i["id"]) or {}).get("verdict", "실패")
+                                         for i in analysis["ideas"])
+            log(f"판정 결과 {dict(counts)}")
 
-        picked = selection.select(analysis["ideas"], judgments["all"])
-        selections["all"] = _selection_summary(picked)
-        log(f"최종 선정 {len(picked['final'])}개 "
-            f"(카테고리 {picked['distinctCategories']}종 · structural 차단 {len(picked['blocked'])} · "
-            f"중복 제거 {len(picked['duplicates'])})")
-        suggestions["all"] = suggest_all(picked["final"], analysis["articles"], analysis["trends"],
-                                         period, "무릎 전체", creds, key, model,
-                                         (prev_suggestions.get("all") or {}))
+            picked = selection.select(analysis["ideas"], judgments["all"])
+            selections["all"] = _selection_summary(picked)
+            log(f"최종 선정 {len(picked['final'])}개 "
+                f"(카테고리 {picked['distinctCategories']}종 · structural 차단 {len(picked['blocked'])} · "
+                f"중복 제거 {len(picked['duplicates'])})")
+            suggestions["all"] = suggest_all(picked["final"], analysis["articles"], analysis["trends"],
+                                             period, "무릎 전체", creds, key, model,
+                                             (prev_suggestions.get("all") or {}))
+        else:
+            log("무릎 전체 목록 판정 건너뜀 (AI_ALL_SCOPE=False) — 계열별 목록에서 판정합니다.")
 
         for fam, label in FAMILY_LABEL.items() if AI_FAMILY_SCOPES else []:
             fam_ideas = analysis["ideasByFamily"].get(fam) or []
@@ -524,7 +539,7 @@ def main(started: datetime):
                                            period, label, creds, key, model,
                                            (prev_suggestions.get(fam) or {}))
         if not AI_FAMILY_SCOPES:
-            log("계열별 판정·고도화 건너뜀 (AI_FAMILY_SCOPES=False) — 무릎 전체 목록만 만듭니다.")
+            log("계열별 판정·고도화 건너뜀 (AI_FAMILY_SCOPES=False).")
         ai_refreshed_at = now
     else:
         # 초록은 오늘 것으로 갱신하되, AI 결과는 지난 것을 그대로 들고 간다.
@@ -565,7 +580,8 @@ def main(started: datetime):
         "sizeMB": round(len(text.encode()) / 1048576, 2),
         "ai": {"ran": run_ai, "reason": why, "model": model if key else None,
                "judged": judged, "suggested": suggested, "trends": len(trend_reports),
-               "priorArt": len(prior), "final": len((selections.get("all") or {}).get("final") or []),
+               "priorArt": len(prior),
+               "final": sum(len(v.get("final") or []) for v in selections.values()),
                "failed": failed},
         "error": None,
     })

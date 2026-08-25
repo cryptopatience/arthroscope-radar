@@ -10,3 +10,6 @@ data/corpus/
 desktop.ini
 Thumbs.db
 .tmp.drive*
+
+# 앱이 쌓는 AI 고도화 캐시. 기기마다 다르고 용량이 커진다.
+data/enhance_cache.json
