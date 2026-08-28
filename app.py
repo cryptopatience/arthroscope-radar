@@ -562,7 +562,11 @@ def render_trials_menu():
     st.markdown("### 임상시험 레이더")
     payload = _trials_payload()
     if not payload:
-        st.caption("아직 수집 전입니다. `python scripts/trials_daily.py`가 한 번 돌면 여기에 나타납니다.")
+        st.caption("아직 수집 전입니다. 눌러 보시면 만드는 방법이 나옵니다.")
+        if st.button("임상시험 보기 →", key="trials_toggle_empty", width="stretch"):
+            st.session_state.show_trials = True
+            st.session_state.show_backtest = False
+            st.rerun()
         return
     summary = summarize_trials(payload)
     st.caption(f"수집 {fmt_dt(payload['fetchedAt'])} · 활성 {summary['active']}건 "
@@ -592,13 +596,15 @@ def render_backtest_menu():
     """사이드바 백테스트 메뉴. 실행은 명령줄에서만 한다 — 3년치 수집이라 화면이 멈춘다."""
     st.markdown("### 백테스트")
     report = _backtest_report()
-    if not report:
-        st.caption("아직 실행 전입니다. `python scripts/backtest.py`를 한 번 돌리면 여기에 결과가 나옵니다.")
-        return
-    meta, summary = report.get("meta") or {}, report.get("summary") or {}
-    st.caption(f"{meta.get('pastFrom', '')} ~ {meta.get('pastTo', '')} 후보로 만들어 "
-               f"{meta.get('futureTo', '')}까지 채점 · 후보 {meta.get('ideas', 0)}개 중 "
-               f"{summary.get('scored', 0)}개 채점")
+    # 결과가 없어도 버튼은 그린다. 안 그리면 메뉴가 죽은 것처럼 보이고, 어떻게
+    # 만드는지 안내할 자리도 없어진다.
+    if report:
+        meta, summary = report.get("meta") or {}, report.get("summary") or {}
+        st.caption(f"{meta.get('pastFrom', '')} ~ {meta.get('pastTo', '')} 후보로 만들어 "
+                   f"{meta.get('futureTo', '')}까지 채점 · 후보 {meta.get('ideas', 0)}개 중 "
+                   f"{summary.get('scored', 0)}개 채점")
+    else:
+        st.caption("아직 실행 전입니다. 눌러 보시면 만드는 방법이 나옵니다.")
     label = "← 분석 화면으로" if st.session_state.show_backtest else "백테스트 보기 →"
     if st.button(label, key="backtest_toggle", width="stretch"):
         st.session_state.show_backtest = not st.session_state.show_backtest
@@ -734,7 +740,30 @@ if st.session_state.error:
 if st.session_state.show_backtest:
     report = _backtest_report()
     if not report:
-        st.info("백테스트 결과가 아직 없습니다. `python scripts/backtest.py`를 먼저 실행해 주세요.")
+        section("01", "백테스트", "아직 실행하지 않았습니다")
+        st.markdown("""
+시계를 과거로 돌려 **그때의 초록만으로** 아이디어를 만들고, 그 이후에 실제로 그 공백이
+채워졌는지 채점합니다. 탐지기와 판정기가 미래를 예측하는지 숫자로 확인하는 유일한 방법입니다.
+
+앱에서는 돌리지 않습니다 — 3년치 PubMed 수집이라 화면이 몇 분씩 멈춥니다. 터미널에서
+아래를 실행하시면 이 화면에 결과가 채워집니다.
+
+**1단계 · 무료** — 탐지기 자체가 미래를 예측하는가
+```
+python scripts/backtest.py
+```
+
+**2단계 · 후보당 약 110원** — 판정기가 기회와 구조적 공백을 실제로 가르는가
+```
+python scripts/backtest.py --judge
+```
+
+판정은 캐시되므로 같은 조건으로 다시 돌리면 무료입니다. NCBI·Gemini 키는
+`.streamlit/secrets.toml`에서 자동으로 읽습니다.
+""")
+        st.caption("창을 바꾸려면 `--past-from 2023-01-01 --past-to 2023-12-31` 처럼 지정하고, "
+                   "채점 표본을 늘리려면 `--candidates 40`을 씁니다. "
+                   "결과는 `data/backtest/`에 JSON과 마크다운으로 함께 저장됩니다.")
         st.stop()
     meta = report.get("meta") or {}
     summary = report.get("summary") or {}
