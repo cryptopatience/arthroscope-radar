@@ -20,6 +20,7 @@ from radar.analysis import FAMILIES, FAMILY_ORDER, JOURNAL_ORDER, JOURNALS, Anal
 from radar.cache import cache_key, get as cache_get, load as cache_load, put as cache_put
 from radar.gemini import ENHANCE_MIN, enhance_idea, pmids_for_idea, resolve_model
 from radar.judge import VERDICT_LABEL, evidence_summary
+from radar.backtest import BACKTEST_MIN_PAPERS, latest_report as latest_backtest
 from radar.selection import PROM_SUBTYPES, gap_category, select
 from radar.vocabulary import GAP_CATEGORIES, LONGTERM_SUBTYPES
 from radar.ncbi import NcbiCredentials
@@ -147,6 +148,8 @@ def init_state():
         # 임상시험 레이더는 아이디어 파이프라인과 독립이다. 상태도 따로 둔다.
         "show_trials": False, "trials_family": "전체", "trials_status": "활성만",
         "trials_knee_only": True,
+        # 백테스트는 앱에서 돌리지 않는다 — 결과 파일만 읽어 보여준다.
+        "show_backtest": False,
         "saved_ideas": load_saved(),
     }
     for key, value in defaults.items():
@@ -576,6 +579,30 @@ def render_trials_menu():
     label = "← 분석 화면으로" if st.session_state.show_trials else "임상시험 보기 →"
     if st.button(label, key="trials_toggle", width="stretch"):
         st.session_state.show_trials = not st.session_state.show_trials
+        st.session_state.show_backtest = False     # 두 화면은 동시에 열지 않는다
+        st.rerun()
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _backtest_report():
+    return latest_backtest()
+
+
+def render_backtest_menu():
+    """사이드바 백테스트 메뉴. 실행은 명령줄에서만 한다 — 3년치 수집이라 화면이 멈춘다."""
+    st.markdown("### 백테스트")
+    report = _backtest_report()
+    if not report:
+        st.caption("아직 실행 전입니다. `python scripts/backtest.py`를 한 번 돌리면 여기에 결과가 나옵니다.")
+        return
+    meta, summary = report.get("meta") or {}, report.get("summary") or {}
+    st.caption(f"{meta.get('pastFrom', '')} ~ {meta.get('pastTo', '')} 후보로 만들어 "
+               f"{meta.get('futureTo', '')}까지 채점 · 후보 {meta.get('ideas', 0)}개 중 "
+               f"{summary.get('scored', 0)}개 채점")
+    label = "← 분석 화면으로" if st.session_state.show_backtest else "백테스트 보기 →"
+    if st.button(label, key="backtest_toggle", width="stretch"):
+        st.session_state.show_backtest = not st.session_state.show_backtest
+        st.session_state.show_trials = False       # 두 화면은 동시에 열지 않는다
         st.rerun()
 
 
@@ -671,6 +698,8 @@ with st.sidebar:
     st.divider()
     render_trials_menu()
     st.divider()
+    render_backtest_menu()
+    st.divider()
     if st.session_state.snapshot:
         snap = st.session_state.snapshot
         st.info(f"일일 스냅샷 표시 중 ({fmt_dt(snap['generatedAt'])}). 조건을 바꿔 분석하면 실시간 결과로 전환됩니다.")
@@ -698,6 +727,74 @@ if run_clicked:
 
 if st.session_state.error:
     st.error(st.session_state.error)
+
+# --- 백테스트 화면 ----------------------------------------------------------
+# 결과 파일만 읽어 보여준다. 실행은 명령줄에서만 한다 — 3년치 수집이라 화면이 멈춘다.
+# 임상시험 화면과 같은 이유로 "분석 결과 없음" st.stop()보다 앞에 둔다.
+if st.session_state.show_backtest:
+    report = _backtest_report()
+    if not report:
+        st.info("백테스트 결과가 아직 없습니다. `python scripts/backtest.py`를 먼저 실행해 주세요.")
+        st.stop()
+    meta = report.get("meta") or {}
+    summary = report.get("summary") or {}
+    outcomes = report.get("outcomes") or []
+
+    section("01", "백테스트", f"{report.get('path', '')} · 생성 {meta.get('generatedAt', '')[:16]}")
+    st.caption("시계를 과거로 돌려 그때의 초록만으로 아이디어를 만들고, 그 이후에 실제로 "
+               "그 공백이 채워졌는지 채점한 결과입니다. 탐지기와 판정기가 미래를 예측하는지 "
+               "숫자로 확인하는 유일한 방법입니다. 실행은 명령줄에서 합니다 — "
+               "`python scripts/backtest.py`.")
+
+    b1, b2, b3, b4 = st.columns(4)
+    b1.metric("후보", f"{meta.get('ideas', 0)}개")
+    b2.metric("채점", f"{summary.get('scored', 0)}개")
+    b3.metric("건너뜀", f"{len(summary.get('skipped') or [])}개")
+    b4.metric("판정 포함", f"{meta.get('judged', 0)}개")
+    st.caption(f"과거 창 {meta.get('pastFrom', '')} ~ {meta.get('pastTo', '')} "
+               f"(초록 {meta.get('pastArticles', 0):,}편) → "
+               f"미래 창 {meta.get('futureFrom', '')} ~ {meta.get('futureTo', '')} "
+               f"(초록 {meta.get('futureArticles', 0):,}편)")
+
+    section("02", "판정별 채움률", "opportunity가 structural보다 뚜렷이 높아야 판정이 작동하는 것입니다")
+    rows = []
+    for verdict, row in (summary.get("byVerdict") or {}).items():
+        n = row["count"] or 1
+        rows.append({
+            "판정": VERDICT_LABEL.get(verdict, verdict).split(" —")[0],
+            "건수": row["count"],
+            "기준 A (공백 해소)": f"{row['filledByRatio']} ({round(row['filledByRatio'] / n * 100)}%)",
+            f"기준 B (직접 논문 {BACKTEST_MIN_PAPERS}편+)": f"{row['filledByCount']} ({round(row['filledByCount'] / n * 100)}%)",
+            "둘 중 하나": f"{row['filledEither']} ({round(row['filledEither'] / n * 100)}%)",
+        })
+    if rows:
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    else:
+        st.caption("채점된 항목이 없습니다.")
+    if summary.get("scored", 0) < 10:
+        st.warning(f"채점된 공백이 {summary.get('scored', 0)}개뿐입니다. 경향을 보는 용도이지 "
+                   "통계적 근거가 아닙니다 — `--candidates`를 올리거나 창을 넓혀 다시 돌리세요.")
+    st.caption("기준 A는 같은 탐지 조건으로 다시 재서 공백이 사라졌고 그 이유가 기준선 하락이 "
+               "아니라 비율 상승인 경우입니다. 기준 B는 절대 편수라 큰 클러스터에 유리하므로, "
+               "아래 표의 `기대 편수`(과거 비율 × 미래 표본)와 견줘 읽으세요.")
+
+    section("03", "공백별 상세", f"{len(outcomes)}개")
+    detail = []
+    for o in outcomes:
+        detail.append({
+            "클러스터 × 공백": f"{o.get('cluster', '')} × {o.get('gapId', '')}",
+            "판정": VERDICT_LABEL.get(o.get("verdict", ""), o.get("verdict", "")).split(" —")[0],
+            "과거 비율": f"{round((o.get('pastRatio') or 0) * 100, 1)}%",
+            "미래 비율": ("—" if o.get("skipped") else f"{round((o.get('futureRatio') or 0) * 100, 1)}%"),
+            "직접 논문": ("—" if o.get("skipped") else o.get("futureObserved")),
+            "기대 편수": ("—" if o.get("skipped") else o.get("expectedAtPastRate")),
+            "기준 A": ("—" if o.get("skipped") else ("충족" if o.get("filledByRatio") else "")),
+            "기준 B": ("—" if o.get("skipped") else ("충족" if o.get("filledByCount") else "")),
+            "비고": o.get("skipped") or o.get("ratioNote", ""),
+        })
+    st.dataframe(pd.DataFrame(detail), hide_index=True, width="stretch")
+    st.stop()   # 백테스트 화면에서는 아래 분석 화면을 그리지 않는다
+
 
 # --- 임상시험 레이더 화면 --------------------------------------------------
 # 아이디어 파이프라인과 독립이라 분석 결과가 없어도 열려야 한다. 그래서 아래

@@ -22,7 +22,9 @@
 """
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 
 from . import config
@@ -30,12 +32,36 @@ from .analysis import (NON_CLINICAL_DESIGNS, PROSPECTIVE_DESIGNS, _gap_metrics, 
                        classify_subgroups)
 from .judge import VERDICT_LABEL
 
+BACKTEST_DIR = Path("data/backtest")
 # 기준 B 임계값. "이 공백을 직접 다룬 논문이 미래 창에 이만큼 나오면 채워진 것으로 본다."
 BACKTEST_MIN_PAPERS = 5
 # 미래 풀이 이보다 작으면 채점하지 않는다. 과거 탐지와 같은 최소 표본을 쓴다.
 BACKTEST_MIN_POOL = config.IDEA_MIN_POOL
 # 기준 A에서 "비율이 올랐다"로 인정할 최소 상승분(비율 단위). 0.5%p 미만은 잡음이다.
 BACKTEST_MIN_GAIN = 0.005
+
+
+def latest_report(directory: Path = BACKTEST_DIR) -> dict | None:
+    """가장 최근 백테스트 결과. 앱이 읽어 표로 그린다(실행은 명령줄에서만 한다).
+
+    파일 이름은 창 날짜라 이름순으로는 최신을 못 고른다 — meta.generatedAt으로 고른다.
+    """
+    try:
+        files = sorted(directory.glob("backtest-*.json"))
+    except Exception:
+        return None
+    best = None
+    for path in files:
+        try:
+            payload = json.loads(path.read_text("utf-8"))
+        except Exception:
+            continue
+        if not isinstance(payload, dict) or "summary" not in payload:
+            continue
+        stamp = (payload.get("meta") or {}).get("generatedAt", "")
+        if best is None or stamp > best[0]:
+            best = (stamp, {**payload, "path": path.name})
+    return best[1] if best else None
 
 
 def _ns(article: dict) -> SimpleNamespace:
