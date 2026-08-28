@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -29,6 +28,7 @@ from radar import analysis as analysis_module  # noqa: E402
 from radar.analysis import JOURNAL_ORDER, AnalysisError, run_analysis  # noqa: E402
 from radar.backtest import report_markdown, score_all, summarize  # noqa: E402
 from radar.ncbi import NcbiCredentials  # noqa: E402
+from radar.secrets import secret, source  # noqa: E402
 
 OUT_DIR = Path("data/backtest")
 # run_analysis의 기간 상한(730일) 안에서 안전하게 자르는 조각 길이.
@@ -43,8 +43,7 @@ WON_PER_JUDGMENT = 109
 
 
 def _credentials() -> NcbiCredentials:
-    return NcbiCredentials(api_key=os.environ.get("NCBI_API_KEY", "").strip(),
-                           email=os.environ.get("NCBI_TOOL_EMAIL", "").strip())
+    return NcbiCredentials(api_key=secret("NCBI_API_KEY"), email=secret("NCBI_TOOL_EMAIL"))
 
 
 def _progress(label: str):
@@ -104,16 +103,17 @@ def judge_ideas(ideas: list[dict], past_articles: list[dict],
     from radar.cache import put as cache_put
     from radar.judge import build_panel, judge_panel, judgment_cache_key, titles_for_idea
 
-    gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    gemini_key = secret("GEMINI_API_KEY")
     if not gemini_key:
-        raise SystemExit("--judge에는 GEMINI_API_KEY 환경변수가 필요합니다.")
+        raise SystemExit("--judge에는 GEMINI_API_KEY가 필요합니다 "
+                         "(환경변수 또는 .streamlit/secrets.toml).")
     # 판정단 구성은 야간 작업과 똑같이 맞춘다. 다르면 판정이 서로 비교되지 않고,
     # 캐시 열쇠에 판정단 이름이 들어가므로 캐시도 공유되지 않는다.
     panel = build_panel(gemini_key,
-                        os.environ.get("GEMINI_MODEL", ""),
-                        os.environ.get("GEMINI_JUDGE_MODEL_B", ""),
-                        os.environ.get("OPENAI_API_KEY", "").strip(),
-                        os.environ.get("OPENAI_JUDGE_MODEL", ""))
+                        secret("GEMINI_MODEL"),
+                        secret("GEMINI_JUDGE_MODEL_B"),
+                        secret("OPENAI_API_KEY"),
+                        secret("OPENAI_JUDGE_MODEL"))
     # 범위 문구는 판정 프롬프트에 그대로 들어간다. 백테스트 전용 문구를 써서
     # 운영 판정과 섞이지 않게 한다(같은 아이디어라도 다른 판정이다).
     scope = "백테스트 · 선택 저널 전체"
@@ -179,8 +179,10 @@ def main():
     print(f"과거 창 {args.past_from} – {args.past_to} → 미래 창 {future_from} – {args.future_to}")
     print(f"저널: {', '.join(journals)} · 후보 상한 {args.candidates} · "
           f"판정: {'포함' if args.judge else '없음 (통계만)'}")
+    print(f"NCBI 키: {source('NCBI_API_KEY')}")
     if not credentials.api_key:
-        print("경고: NCBI_API_KEY가 없습니다. 수집이 순차로 돌아 매우 느립니다.")
+        print("경고: NCBI_API_KEY가 없습니다(환경변수·secrets.toml 모두). "
+              "수집이 순차로 돌아 매우 느립니다.")
 
     # 1. 과거 창: 아이디어 생성 (기존 파이프라인 그대로)
     past = run_analysis(journals, args.past_from, args.past_to, "", credentials,

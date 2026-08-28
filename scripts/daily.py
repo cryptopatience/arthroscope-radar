@@ -34,6 +34,7 @@ from radar.judge import (BLOCKED_VERDICTS, JUDGE_PROMPT_VERSION, JUDGE_RUNS, bui
                          cache_versions, evidence_summary, judge_panel, judgment_cache_key,
                          titles_for_idea)
 from radar.ncbi import NcbiCredentials  # noqa: E402
+from radar.secrets import secret  # noqa: E402
 from radar import prior_art, selection  # noqa: E402
 
 FAMILY_LABEL = {
@@ -276,7 +277,9 @@ def report_summary(analysis: dict, all_judgments: dict, prior: dict, selections:
 
 
 def env(name: str) -> str:
-    return os.environ.get(name, "").strip()
+    """환경변수 우선, 없으면 .streamlit/secrets.toml. 손으로 돌릴 때를 위한 것이다 —
+    GitHub Actions는 저장소 Secrets를 환경변수로 주입하므로 그쪽이 항상 이긴다."""
+    return secret(name)
 
 
 def log(message: str):
