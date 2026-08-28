@@ -586,6 +586,21 @@ def main(started: datetime):
     text = json.dumps(snapshot, ensure_ascii=False)
     out.write_text(text + "\n", "utf-8")
     log(f"저장 완료: {out} ({len(text.encode()) / 1048576:.2f}MB)")
+
+    # 임상시험 레이더. 아이디어 파이프라인과 독립이라 스냅샷을 다 쓴 뒤에 돌리고,
+    # 실패해도 넘어간다 — 독립 기능은 독립적으로 실패해야 한다. ClinicalTrials.gov는
+    # 무료·키 불필요라 비용이 없고 40초쯤 걸린다.
+    try:
+        from radar.trials import refresh as refresh_trials
+        from radar.trials import summarize as summarize_trials
+        tpayload = refresh_trials()
+        tsummary = summarize_trials(tpayload)
+        tchanges = tpayload["history"][0]["changes"]
+        log(f"임상시험 {tsummary['total']}건 (활성 {tsummary['active']}) · "
+            f"변동 신규 {tchanges.get('newTotal', 0)} · 상태 {tchanges.get('statusChangedTotal', 0)} · "
+            f"결과 {tchanges.get('resultsPostedTotal', 0)}")
+    except Exception as error:
+        log(f"임상시험 갱신 실패 (분석 결과에는 영향 없음): {error}")
     judged = sum(len(rows) for rows in judgments.values())
     suggested = sum(len(rows) for rows in suggestions.values())
     log(f"공백 판정 {judged}건({' · '.join(f'{k} {len(v)}' for k, v in judgments.items())}), "

@@ -23,6 +23,8 @@ from radar.judge import VERDICT_LABEL, evidence_summary
 from radar.selection import PROM_SUBTYPES, gap_category, select
 from radar.vocabulary import GAP_CATEGORIES, LONGTERM_SUBTYPES
 from radar.ncbi import NcbiCredentials
+from radar.trials import (ACTIVE_STATUSES, FAMILY_LABEL as TRIAL_FAMILY_LABEL, STATUS_LABEL,
+                          load as load_trials, summarize as summarize_trials, trial_url)
 
 TREND_ROWS = 9          # 편수 순 표에서 먼저 보여주는 행 수. 그 아래 상승 신호는 따로 덧붙인다.
 ARTICLE_PAGE = 8
@@ -142,6 +144,9 @@ def init_state():
         "analysis": None, "snapshot": None, "error": "",
         "scope": ("all", None), "active_topic": "전체", "visible_articles": ARTICLE_PAGE,
         "enhanced": {}, "enhance_error": {}, "show_saved": False, "booted": False,
+        # 임상시험 레이더는 아이디어 파이프라인과 독립이다. 상태도 따로 둔다.
+        "show_trials": False, "trials_family": "전체", "trials_status": "활성만",
+        "trials_knee_only": True,
         "saved_ideas": load_saved(),
     }
     for key, value in defaults.items():
@@ -544,6 +549,36 @@ def ago(hours: float) -> str:
     return f"{round(hours / 24)}일 전"
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _trials_payload():
+    return load_trials()
+
+
+def render_trials_menu():
+    """사이드바 임상시험 메뉴. 아이디어 파이프라인과 독립 — 요약과 진입 버튼만 둔다."""
+    st.markdown("### 임상시험 레이더")
+    payload = _trials_payload()
+    if not payload:
+        st.caption("아직 수집 전입니다. `python scripts/trials_daily.py`가 한 번 돌면 여기에 나타납니다.")
+        return
+    summary = summarize_trials(payload)
+    st.caption(f"수집 {fmt_dt(payload['fetchedAt'])} · 활성 {summary['active']}건 "
+               f"(인공관절 {summary['byFamily'].get('arthroplasty', 0)} · "
+               f"관절경 {summary['byFamily'].get('arthroscopy', 0)}) · 결과 게시 {summary['withResults']}건")
+    entry = (payload.get("history") or [{}])[0]
+    changes = entry.get("changes") or {}
+    moved = (changes.get("statusChangedTotal", 0) + changes.get("resultsPostedTotal", 0)
+             + changes.get("newTotal", 0))
+    if moved and not entry.get("firstRun"):
+        st.info(f"지난 수집 이후 변동 {moved}건 — 신규 {changes.get('newTotal', 0)} · "
+                f"상태 변경 {changes.get('statusChangedTotal', 0)} · "
+                f"결과 게시 {changes.get('resultsPostedTotal', 0)}")
+    label = "← 분석 화면으로" if st.session_state.show_trials else "임상시험 보기 →"
+    if st.button(label, key="trials_toggle", width="stretch"):
+        st.session_state.show_trials = not st.session_state.show_trials
+        st.rerun()
+
+
 def render_run_log():
     """사이드바 운영 로그. 수집이 매일 돌고 있는지를 한눈에 본다."""
     st.markdown("### 운영 로그")
@@ -634,6 +669,8 @@ with st.sidebar:
     st.divider()
     render_run_log()
     st.divider()
+    render_trials_menu()
+    st.divider()
     if st.session_state.snapshot:
         snap = st.session_state.snapshot
         st.info(f"일일 스냅샷 표시 중 ({fmt_dt(snap['generatedAt'])}). 조건을 바꿔 분석하면 실시간 결과로 전환됩니다.")
@@ -661,6 +698,98 @@ if run_clicked:
 
 if st.session_state.error:
     st.error(st.session_state.error)
+
+# --- 임상시험 레이더 화면 --------------------------------------------------
+# 아이디어 파이프라인과 독립이라 분석 결과가 없어도 열려야 한다. 그래서 아래
+# "분석 결과 없음" st.stop()보다 앞에 둔다.
+if st.session_state.show_trials:
+    payload = _trials_payload()
+    if not payload:
+        st.info("임상시험 자료가 아직 없습니다. `python scripts/trials_daily.py`를 먼저 실행해 주세요.")
+        st.stop()
+    trials = list(payload["trials"].values())
+    tsummary = summarize_trials(payload)
+
+    section("01", "임상시험 레이더", f"ClinicalTrials.gov · 수집 {fmt_dt(payload['fetchedAt'])}")
+    st.caption("이 화면은 논문 아이디어 생성과 무관한 독립 관찰 도구입니다. "
+               "무릎 인공관절·관절경 관련 등록 시험의 모습과 변동을 추적합니다. "
+               "출판 전 경쟁 연구를 미리 보는 창이기도 합니다 — 모집 종료·완료 전환은 "
+               "보통 1~2년 안에 논문이 나온다는 신호입니다.")
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("전체", f"{tsummary['total']}건")
+    m2.metric("활성 (모집·진행)", f"{tsummary['active']}건")
+    m3.metric("완료", f"{tsummary['completed']}건")
+    m4.metric("결과 게시", f"{tsummary['withResults']}건")
+
+    entry = (payload.get("history") or [{}])[0]
+    changes = entry.get("changes") or {}
+    if entry.get("firstRun"):
+        st.info("첫 수집입니다. 변동 감지는 다음 수집부터 시작됩니다.")
+    else:
+        section("02", "최근 변동", "지난 수집과의 비교")
+        rows = []
+        for c in changes.get("statusChanged", []):
+            rows.append({"종류": "상태 변경", "NCT": c["nctId"], "제목": c["title"][:80],
+                         "내용": f"{STATUS_LABEL.get(c['from'], c['from'])} → {STATUS_LABEL.get(c['to'], c['to'])}"})
+        for c in changes.get("resultsPosted", []):
+            rows.append({"종류": "결과 게시", "NCT": c["nctId"], "제목": c["title"][:80], "내용": "결과 데이터 공개됨"})
+        for c in changes.get("new", []):
+            rows.append({"종류": "신규 등록", "NCT": c["nctId"], "제목": c["title"][:80],
+                         "내용": STATUS_LABEL.get(c["status"], c["status"])})
+        for c in changes.get("completionMoved", []):
+            rows.append({"종류": "완료일 이동", "NCT": c["nctId"], "제목": c["title"][:80],
+                         "내용": f"{c['from']} → {c['to']}"})
+        if rows:
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+        else:
+            st.caption("변동 없음.")
+        if changes.get("gone"):
+            st.caption(f"검색 범위에서 빠진 시험 {changes['gone']}건 (대부분 검색어 경계의 흔들림입니다).")
+
+    section("03", "시험 목록", f"{len(trials)}건")
+    f1, f2 = st.columns(2)
+    family_pick = f1.radio("계열", ["전체", "인공관절", "관절경·스포츠"], horizontal=True, key="trials_family")
+    status_pick = f2.radio("상태", ["활성만", "완료", "결과 게시", "전체"], horizontal=True, key="trials_status")
+    # 검색이 전체 필드를 훑어서 무릎과 무관한 시험이 15%쯤 섞인다. 버리지 않고
+    # 표시만 해 두었으므로(radar/trials.py의 KNEE_PATTERN), 끄고 켤 수 있게 둔다.
+    knee_only = st.checkbox("제목·질환명에 무릎이 명시된 것만 "
+                            f"({tsummary['kneeExplicit']}/{tsummary['total']}건)",
+                            key="trials_knee_only")
+
+    def _visible(t):
+        if knee_only and not t.get("kneeExplicit"):
+            return False
+        if family_pick != "전체":
+            key = next((k for k, v in TRIAL_FAMILY_LABEL.items() if v == family_pick), "")
+            if key not in t.get("families", []):
+                return False
+        if status_pick == "활성만":
+            return t.get("status") in ACTIVE_STATUSES
+        if status_pick == "완료":
+            return t.get("status") == "COMPLETED"
+        if status_pick == "결과 게시":
+            return bool(t.get("hasResults"))
+        return True
+
+    visible = sorted((t for t in trials if _visible(t)),
+                     key=lambda t: t.get("lastUpdated") or "", reverse=True)
+    st.caption(f"{len(visible)}건 표시 · 최근 갱신 순")
+    st.dataframe(pd.DataFrame([{
+        "NCT": t["nctId"],
+        "제목": t["title"][:90],
+        "상태": STATUS_LABEL.get(t["status"], t["status"]),
+        "계열": " · ".join(TRIAL_FAMILY_LABEL.get(f, f) for f in t.get("families", [])),
+        "목표 인원": t.get("enrollment"),
+        "1차 완료 예정": t.get("primaryCompletionDate") or "—",
+        "결과": "게시" if t.get("hasResults") else "",
+        "링크": trial_url(t["nctId"]),
+    } for t in visible[:200]]), hide_index=True, width="stretch",
+        column_config={"링크": st.column_config.LinkColumn("링크", display_text="열기")})
+    if len(visible) > 200:
+        st.caption("200건까지만 표시합니다. 필터를 좁혀 주세요.")
+    st.stop()   # 임상시험 화면에서는 아래 분석 화면을 그리지 않는다
+
 
 analysis = st.session_state.analysis
 if not analysis:
