@@ -45,7 +45,9 @@ IDEA_ABSTRACTS = 32
 # 고도화는 최종 선정된 아이디어에만 한다. 후보 15개를 전부 고도화하면 비용이
 # 세 배가 되는데, 그중 열 개는 어차피 전역 제약에서 떨어진다.
 TREND_ABSTRACTS = 30
-GEMINI_WEEKDAY = 4      # 0=월 … 4=금. 초록 수집은 매일, Gemini 분석은 이 요일에만.
+# 0=월 … 4=금. 이 요일을 선호하되, 요일만으로 판단하지는 않는다(gemini_day 주석 참고).
+GEMINI_WEEKDAY = 4
+GEMINI_INTERVAL_DAYS = 7   # 마지막 AI 갱신에서 이만큼 지나면 요일과 무관하게 갱신한다.
 # 어느 목록을 판정·고도화할지. 판정이 비용의 70%라 이 두 스위치가 비용을 정한다.
 #
 # 2026-08-25에 뒤집었다. 이전에는 "무릎 전체" 목록만 판정했는데(계열 판정을 꺼서
@@ -300,17 +302,42 @@ def append_run(entry: dict):
     RUN_LOG.write_text(json.dumps(([entry] + previous)[:RUN_LOG_KEEP], ensure_ascii=False, indent=1) + "\n", "utf-8")
 
 
+def _last_ai_date(previous: dict) -> date | None:
+    stamp = previous.get("aiRefreshedAt") or previous.get("generatedAt")
+    try:
+        return datetime.fromisoformat(stamp).date()
+    except (TypeError, ValueError):
+        return None
+
+
 def gemini_day(today: date, previous: dict) -> tuple[bool, str]:
-    """오늘 Gemini를 돌릴지. 초록 수집 자체는 이 판단과 무관하게 매일 돈다."""
+    """오늘 Gemini를 돌릴지. 초록 수집 자체는 이 판단과 무관하게 매일 돈다.
+
+    "오늘이 금요일인가"로 판단하면 안 된다. GitHub 스케줄러가 정시에 오지 않는다 —
+    실측으로 08-27 실행은 10.6시간 밀렸고, 08-28 실행은 아예 잡히지 않았다. 09:17 UTC
+    예정이 14.7시간 넘게 밀리면 컨테이너 날짜가 토요일이 되어 요일 검사에 걸리고,
+    그러면 그 주가 통째로 날아간다. 다음 기회는 일주일 뒤이고, 그날도 밀리면 또
+    일주일이다. 실제로 이 때문에 AI 결과가 나흘 넘게 묵었다.
+
+    그래서 요일이 아니라 "마지막 갱신에서 며칠 지났나"로 본다. 금요일 조건은 6일째에만
+    남겨 둔다 — 한 번 토요일로 밀려도 다음 금요일에 제자리를 찾고, 그러면서도 간격이
+    6일 밑으로 내려가지 않아 한 주에 두 번 도는 일이 없다.
+    """
     if env("GEMINI_SKIP") == "1":
         return False, "GEMINI_SKIP=1 로 비활성화됨"
     if env("GEMINI_FORCE") == "1":
         return True, "GEMINI_FORCE=1 로 강제 실행"
     if not previous.get("suggestions") and not previous.get("trendReports"):
         return True, "이전 AI 결과가 없어 최초 1회 생성"
-    if today.weekday() == GEMINI_WEEKDAY:
-        return True, "금요일 정기 갱신"
-    return False, f"{'월화수목금토일'[today.weekday()]}요일 — 지난 결과 재사용"
+    last = _last_ai_date(previous)
+    if last is None:
+        return True, "마지막 AI 갱신 시각을 읽을 수 없어 갱신"
+    age = (today - last).days
+    if age >= GEMINI_INTERVAL_DAYS:
+        return True, f"마지막 AI 갱신 {age}일 전 — 정기 갱신"
+    if age >= GEMINI_INTERVAL_DAYS - 1 and today.weekday() == GEMINI_WEEKDAY:
+        return True, f"금요일 정기 갱신 (마지막 갱신 {age}일 전)"
+    return False, f"마지막 AI 갱신 {age}일 전 — 지난 결과 재사용"
 
 
 def judge_all(ideas, pool, scope, period, panel, prev: dict) -> dict:

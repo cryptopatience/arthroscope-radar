@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import hmac
+import html as html_lib
 import json
 import os
 from datetime import date, datetime, timedelta
@@ -89,6 +90,13 @@ st.markdown("""
 # ---------------------------------------------------------------------------
 # 설정·상태
 # ---------------------------------------------------------------------------
+
+def esc(value) -> str:
+    """HTML로 내보낼 외부 문자열. PubMed 초록과 Gemini 응답에는 부등호가 들어 있다 —
+    2,038편 중 30편이 그렇다("aged <50 years", "BMI >30"). 그대로 넣으면 브라우저가
+    태그로 읽어 뒤 문장을 통째로 삼킨다."""
+    return html_lib.escape(str(value if value is not None else ""))
+
 
 def secret(key: str) -> str:
     try:
@@ -343,9 +351,9 @@ def verdict_html(idea: dict) -> str:
     opportunity = verdict == "opportunity"
     head = "판정 근거" if opportunity else "추천하지 않는 이유"
     block = (f'<div class="verdict {"op" if opportunity else ""}"><span class="hd">{head}</span>'
-             f'<b>{VERDICT_LABEL[verdict]}</b><br>{judgment.get("reason", "")}')
+             f'<b>{VERDICT_LABEL[verdict]}</b><br>{esc(judgment.get("reason"))}')
     if judgment.get("fieldStandard"):
-        block += f'<span class="std">이 분야가 실제로 쓰는 1차 결과: {judgment["fieldStandard"]}</span>'
+        block += f'<span class="std">이 분야가 실제로 쓰는 1차 결과: {esc(judgment["fieldStandard"])}</span>'
     evidence = evidence_summary(judgment, idea.get("metrics"))
     if evidence:
         rows = [("판정 안정성", evidence["stability"]), ("모델 간 합의", evidence["consensus"]),
@@ -362,7 +370,10 @@ def plan_ideas(ideas: list[dict]) -> dict:
     앱에서 직접 계산한다. 스냅샷에도 결과가 들어 있지만, 실시간 분석에는 없고
     옛 스냅샷에도 없다. 순수 계산이라(후보 15개 → 조합 3,003가지) 매번 돌려도 된다.
     """
-    judgments = (st.session_state.snapshot or {}).get("judgments") or {}
+    # 범위별로 나뉜 사전을 그대로 넘기면 select()가 아이디어 id로 찾지 못해 전부
+    # "판정 없음"이 된다. 바로 아래 judged 는 judgment_for(범위를 여는 함수)로 만드는데
+    # select 에는 안 열고 넘기고 있었다 — 한 함수 안에서 두 방식이 섞여 있었다.
+    judgments = _scoped("judgments")
     judged = {i["id"] for i in ideas if judgment_for(i["id"])}
     pending = [i for i in ideas if i["id"] not in judged]
     if not judged:
@@ -412,7 +423,7 @@ def prior_art_html(idea: dict) -> str:
     if not isinstance(prior, dict):
         return ""
     if prior.get("error"):
-        return f'<div class="prior"><b>선행연구 확인 실패</b> — {prior["error"]}</div>'
+        return f'<div class="prior"><b>선행연구 확인 실패</b> — {esc(prior["error"])}</div>'
     direct = prior.get("matchCount")
     if direct is None:
         head = "<b>선행연구 미측정</b>"
@@ -425,9 +436,9 @@ def prior_art_html(idea: dict) -> str:
     for label, key in (("직접", "matches"), ("인접", "adjacent")):
         for m in (prior.get(key) or [])[:2]:
             block += (f'<br>· [{label}] <a href="{pubmed(m["pmid"])}" target="_blank">PMID {m["pmid"]}</a> '
-                      f'({m.get("year", "")}, {m.get("journal", "")}) {m.get("title", "")[:85]}')
+                      f'({esc(m.get("year"))}, {esc(m.get("journal"))}) {esc(m.get("title", "")[:85])}')
     if prior.get("note"):
-        block += f'<br><i>{prior["note"]}</i>'
+        block += f'<br><i>{esc(prior["note"])}</i>'
     return block + "</div>"
 
 
@@ -712,16 +723,16 @@ section("02", "Research signals", f"{scope_label} · 기간 후반부와 전반�
 snap = st.session_state.snapshot
 scope_report = (snap or {}).get("trendReports", {}).get(key) if kind == "family" else None
 if scope_report and not scope_report.get("error"):
-    html = [f'<div class="ai"><div class="lbl">AI 동향 분석 · {scope_report.get("model", "")}</div>',
-            f"<h3>{scope_report.get('headline', '')}</h3><p>{scope_report.get('summary', '')}</p>"]
+    html = [f'<div class="ai"><div class="lbl">AI 동향 분석 · {esc(scope_report.get("model"))}</div>',
+            f"<h3>{esc(scope_report.get('headline'))}</h3><p>{esc(scope_report.get('summary'))}</p>"]
     if scope_report.get("movements"):
         html.append("<ul>")
         for mv in scope_report["movements"]:
-            links = " ".join(f'<a href="{pubmed(p)}" target="_blank">{p}</a>' for p in mv.get("evidence", []))
-            html.append(f"<li><b>{mv['topic']}</b> {mv['reading']} <small>{links}</small></li>")
+            links = " ".join(f'<a href="{pubmed(esc(p))}" target="_blank">{esc(p)}</a>' for p in mv.get("evidence", []))
+            html.append(f"<li><b>{esc(mv['topic'])}</b> {esc(mv['reading'])} <small>{links}</small></li>")
         html.append("</ul>")
     if scope_report.get("watchList"):
-        html.append(f"<p><b>지켜볼 것</b> {' · '.join(scope_report['watchList'])}</p>")
+        html.append(f"<p><b>지켜볼 것</b> {' · '.join(esc(w) for w in scope_report['watchList'])}</p>")
     st.markdown("".join(html) + "</div>", unsafe_allow_html=True)
 
 left, right = st.columns([2, 1])
@@ -969,8 +980,8 @@ if not filtered:
 for a in filtered[:st.session_state.visible_articles]:
     st.markdown(
         f'<div class="article"><div class="meta"><b>{JOURNALS[a["journalKey"]]["short"]}</b> · {compact_date(a["date"])} · {a["joint"]} · {a["design"]}</div>'
-        f'<h4><a href="{pubmed(a["pmid"])}" target="_blank">{a["title"]}</a></h4><p>{a["abstract"]}</p>'
-        f'<div class="authors">{a["authors"]} &nbsp; ' + " ".join(f"#{t}" for t in a["topics"][:3]) + "</div></div>",
+        f'<h4><a href="{pubmed(a["pmid"])}" target="_blank">{esc(a["title"])}</a></h4><p>{esc(a["abstract"])}</p>'
+        f'<div class="authors">{esc(a["authors"])} &nbsp; ' + " ".join(f"#{t}" for t in a["topics"][:3]) + "</div></div>",
         unsafe_allow_html=True)
 if st.session_state.visible_articles < len(filtered):
     if st.button(f"초록 더 보기 +{ARTICLE_PAGE}"):

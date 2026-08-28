@@ -762,8 +762,8 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
                     and len(prom_pool) >= config.PROM_INTERP_MIN_BASE and prom_rest):
                 m = _gap_metrics(prom_pool, prom_rest, lambda a: _has(a, "prom_interpretation"), stamps, midpoint)
                 if m["ratio"] <= config.PROM_INTERP_MAX_RATIO and _passes(m):
-                    add(m["z"] * 1.3 * gw, "outcome", cluster, "prom_interpretation" + unit, _idea(
-                        cluster, "prom_interpretation", "outcome_measurement", "prom_interpretation", spec,
+                    add(m["z"] * 1.3 * gw, "outcome", cluster, "prom_interpretation", _idea(
+                        cluster, "prom_interpretation" + unit, "outcome_measurement", "prom_interpretation", spec,
                         title=f"{cluster}의 PROM 변화는 환자에게 의미 있는 크기인가?",
                         rationale=(f"{cluster} {len(pool)}편 중 PROM을 보고한 초록은 {len(prom_pool)}편으로 충분합니다. "
                                    f"그런데 그중 MCID·PASS·SCB·responder로 해석까지 한 초록은 {m['observed']}편"
@@ -867,8 +867,11 @@ def generate_ideas(articles: list[Article], trends: list[Trend],
             # --- D7. 외부검증 공백 (population_external_validity) ----------------
             m = _gap_metrics(pool, rest, lambda a: _has(a, "external_validation"), stamps, midpoint)
             if _passes(m):
-                add(m["z"] * gw, "external", cluster, "external_validation" + unit, _idea(
-                    cluster, "external_validation", "population_external_validity", "external_validation", spec,
+                # unit 은 axis 가 아니라 gapId 에 붙인다. 나머지 일곱 탐지기와 같은 방식이다.
+                # 반대로 두면 형평성이 access/outcome_gap 으로 갈리는 날 두 아이디어가
+                # 같은 id 를 갖고, id 로 찾는 판정·제안·선행연구가 서로를 덮어쓴다.
+                add(m["z"] * gw, "external", cluster, "external_validation", _idea(
+                    cluster, "external_validation" + unit, "population_external_validity", "external_validation", spec,
                     title=f"{cluster}의 결과는 다른 기관·집단에서도 재현되는가?",
                     rationale=(f"{cluster} {len(pool)}편 중 다기관·등록자료·외부 코호트 검증을 언급한 초록은 "
                                f"{m['observed']}편({_pct(m['ratio'])}%)으로, 나머지 문헌의 {_pct(m['baseline'])}%보다 "
@@ -1118,6 +1121,10 @@ def run_analysis(journals: list[str], date_from: str, date_to: str, focus: str =
         if index < len(journals) - 1:
             time.sleep(throttle)
 
+    # ESearch 페이지를 넘기는 사이 PubMed에 새 논문이 들어오면 뒤 페이지가 한 칸씩
+    # 밀려 같은 UID가 두 번 온다. 그대로 두면 같은 초록을 두 번 세어 클러스터 비중과
+    # 공백 통계가 조용히 틀어진다. 순서는 유지한 채 중복만 제거한다.
+    ids = list(dict.fromkeys(ids))
     collected = len(ids)
     selected = _even_sample(ids, MAX_TOTAL_ARTICLES) if collected > MAX_TOTAL_ARTICLES else ids
     if not selected:

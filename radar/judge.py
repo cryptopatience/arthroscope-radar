@@ -129,6 +129,11 @@ def judgment_input(idea: dict, scope: str, period: str, titles: list[str]) -> di
                               ("n", "observed", "ratio", "baseline", "z", "effectSize", "sufficiency")},
         "evidencePmids": sorted(str(e.get("pmid", "")) for e in (idea.get("evidence") or [])),
         "representativeTitles": list(titles[:JUDGE_TITLES]),
+        # 프롬프트에 그대로 들어가는 사전 본문. 이것이 빠져 있으면 STRUCTURAL_PRIORS를
+        # 고쳐도 옛 판정이 그대로 재사용된다. JUDGE_PROMPT_VERSION을 손으로 올리는
+        # 절차가 있지만, 사람이 잊으면 조용히 틀린다.
+        "structuralPrior": STRUCTURAL_PRIORS.get(idea.get("gapCategory", ""), ""),
+        "categoryNote": (GAP_CATEGORIES.get(idea.get("gapCategory", "")) or {}).get("note", ""),
         "scope": scope,
         "period": period,
     }
