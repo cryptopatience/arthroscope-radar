@@ -1,12 +1,12 @@
 {
- "commit": "c043051",
+ "commit": "71cd2a6",
  "workingTreeDirty": false,
  "cacheVersion": "p6.k2.c7.t4.r5",
- "retrievalDate": "2026-08-28",
- "generatedAt": "2026-08-28T20:57:36.724342+00:00",
+ "retrievalDate": "2026-08-29",
+ "generatedAt": "2026-08-29T14:33:08.144192+00:00",
  "period": {
   "from": "2025-08-28",
-  "to": "2026-08-28"
+  "to": "2026-08-29"
  },
  "journalSet": [
   "joa",
@@ -21,16 +21,16 @@
   "ojsm"
  ],
  "pubmedQueries": {
-  "joa": "\"J Arthroplasty\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/28\"[Date - Publication])",
-  "at": "\"Arthroplast Today\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/28\"[Date - Publication])",
-  "bjj": "\"Bone Joint J\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/28\"[Date - Publication])",
-  "jbjsam": "\"J Bone Joint Surg Am\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/28\"[Date - Publication])",
-  "corr": "\"Clin Orthop Relat Res\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/28\"[Date - Publication])",
-  "acta": "\"Acta Orthop\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/28\"[Date - Publication])",
-  "kssta": "\"Knee Surg Sports Traumatol Arthrosc\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/28\"[Date - Publication])",
-  "arthroscopy": "\"Arthroscopy\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/28\"[Date - Publication])",
-  "ajsm": "\"Am J Sports Med\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/28\"[Date - Publication])",
-  "ojsm": "\"Orthop J Sports Med\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/28\"[Date - Publication])"
+  "joa": "\"J Arthroplasty\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/29\"[Date - Publication])",
+  "at": "\"Arthroplast Today\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/29\"[Date - Publication])",
+  "bjj": "\"Bone Joint J\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/29\"[Date - Publication])",
+  "jbjsam": "\"J Bone Joint Surg Am\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/29\"[Date - Publication])",
+  "corr": "\"Clin Orthop Relat Res\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/29\"[Date - Publication])",
+  "acta": "\"Acta Orthop\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/29\"[Date - Publication])",
+  "kssta": "\"Knee Surg Sports Traumatol Arthrosc\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/29\"[Date - Publication])",
+  "arthroscopy": "\"Arthroscopy\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/29\"[Date - Publication])",
+  "ajsm": "\"Am J Sports Med\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/29\"[Date - Publication])",
+  "ojsm": "\"Orthop J Sports Med\"[jour] AND (\"2025/08/28\"[Date - Publication] : \"2026/08/29\"[Date - Publication])"
  },
  "priorArtQueries": {
   "전방십자인대·반월상::cross_로봇·내비게이션": "(\"knee\"[tiab] OR \"knees\"[tiab]) AND (\"anterior cruciate\"[tiab] OR \"acl\"[tiab] OR \"aclr\"[tiab] OR \"menisc*\"[tiab] OR \"root repair\"[tiab]) AND (\"robotic\"[tiab] OR \"robot-assisted\"[tiab] OR \"navigation\"[tiab] OR \"computer-assisted\"[tiab] OR \"augmented reality\"[tiab] OR \"patient-specific instrumentation\"[tiab]) AND (\"2016\"[dp] : \"2026\"[dp])",
@@ -2087,7 +2087,7 @@
   "42662126"
  ],
  "corpusPmidsHash": "sha256:4cf6c21b93533113367ecb7bf3c1412095184ab4729513f582575ce50b5e0df3",
- "corpusContentHash": "sha256:948847551678b559ace3dd4c13a608a295d3fb5e21c9f4ddd0c6a764c21836f4",
+ "corpusContentHash": "sha256:c97227eae58aa044c30db700d9b178e072bff23b02b323b1f23da2a152703efd",
  "llmJudgmentHash": "sha256:741010a3bf31ef0deac479ab84ee0961b78d92fb96428ea7d03525cc517f4b41",
  "judgmentScopes": {
   "arthroplasty": 6,
@@ -2095,11 +2095,11 @@
  },
  "priorArtResultHash": "sha256:9c3c893640944a422d924da74bf0c7fe810bfa2d200e891da6719a626255dae4",
  "rawCorpusSnapshot": {
-  "assetName": "corpus-20260828-d1f2e893.json.gz",
-  "releaseTag": "corpus-20260828",
-  "path": "data/corpus/corpus-20260828-d1f2e893.json.gz",
-  "sha256": "sha256:d1f2e893fcba11517a93a0b0d07eb63078044bfc272cb048b4dfafb1b7119fb7",
-  "sizeBytes": 368577,
+  "assetName": "corpus-20260829-ff3bd4fc.json.gz",
+  "releaseTag": "corpus-20260829",
+  "path": "data/corpus/corpus-20260829-ff3bd4fc.json.gz",
+  "sha256": "sha256:ff3bd4fc6eb0259971ae74aed8b31c350f420625499ece55ce48e453ed5b1841",
+  "sizeBytes": 368574,
   "rawBytes": 1408338,
   "records": 2043,
   "uploaded": false,
