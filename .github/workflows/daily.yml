@@ -56,6 +56,7 @@ jobs:
             data/run_log.json
             data/run_manifest.json
             data/trials.json
+            data/trend_history.json
           retention-days: 14
           if-no-files-found: ignore
 
@@ -64,7 +65,7 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
-          git add -A data/daily.json data/run_log.json data/run_manifest.json data/trials.json
+          git add -A data/daily.json data/run_log.json data/run_manifest.json data/trials.json data/trend_history.json
           if git diff --cached --quiet; then
             echo "변경 없음 — 커밋을 건너뜁니다."; exit 0
           fi

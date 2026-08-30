@@ -590,6 +590,17 @@ def main(started: datetime):
     out.write_text(text + "\n", "utf-8")
     log(f"저장 완료: {out} ({len(text.encode()) / 1048576:.2f}MB)")
 
+    # AI 동향 분석을 주차별 이력에 남긴다. daily.json은 매일 덮어써지므로 여기에
+    # 쌓지 않으면 지난주 서술이 사라진다. 저장만 하는 것이라 비용이 없다.
+    if run_ai:
+        try:
+            from radar.trend_history import record as record_trends
+            week = record_trends(trend_reports, ai_refreshed_at, model if key else "", analysis)
+            log(f"동향 분석 이력 기록 — {week}" if week
+                else "동향 분석 이력 건너뜀 (기록할 분석이 없습니다)")
+        except Exception as error:
+            log(f"동향 분석 이력 기록 실패 (분석 결과에는 영향 없음): {error}")
+
     # 임상시험 레이더. 아이디어 파이프라인과 독립이라 스냅샷을 다 쓴 뒤에 돌리고,
     # 실패해도 넘어간다 — 독립 기능은 독립적으로 실패해야 한다. ClinicalTrials.gov는
     # 무료·키 불필요라 비용이 없고 40초쯤 걸린다.

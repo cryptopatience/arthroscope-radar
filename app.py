@@ -23,6 +23,8 @@ from radar.judge import VERDICT_LABEL, evidence_summary
 from radar.selection import PROM_SUBTYPES, gap_category, select
 from radar.vocabulary import GAP_CATEGORIES, LONGTERM_SUBTYPES
 from radar.ncbi import NcbiCredentials
+from radar.trend_history import load as load_trend_history
+from radar.trend_history import weeks as history_weeks
 from radar.trials import (ACTIVE_STATUSES, FAMILY_LABEL as TRIAL_FAMILY_LABEL, STATUS_LABEL,
                           load as load_trials, summarize as summarize_trials, trial_url)
 
@@ -882,7 +884,24 @@ kind, key = st.session_state.scope
 section("02", "Research signals", f"{scope_label} · 기간 후반부와 전반부의 초록 비중을 비교했습니다.")
 
 snap = st.session_state.snapshot
+# 동향 분석은 주 1회 Gemini가 쓰는 글이라 지난주와 견줘 읽을 때 값이 있다. 스냅샷은
+# 이번 주 것만 들고 있으므로 주차 이력을 따로 읽어 고를 수 있게 한다.
+history = load_trend_history() if kind == "family" else {"weeks": {}}
+available = history_weeks(history)
 scope_report = (snap or {}).get("trendReports", {}).get(key) if kind == "family" else None
+week_note = ""
+if available and kind == "family":
+    picked_week = st.selectbox("동향 분석 주차", available, index=0, key="trend_week",
+                               label_visibility="collapsed")
+    entry = history["weeks"].get(picked_week) or {}
+    from_history = (entry.get("reports") or {}).get(key)
+    if from_history:
+        scope_report = from_history
+        corpus = entry.get("corpus") or {}
+        week_note = (f"{picked_week} · {fmt_dt(entry.get('at', ''))} 기준 · "
+                     f"초록 {corpus.get('analyzed', 0):,}편")
+        if picked_week != available[0]:
+            week_note += " · 지난 주차를 보고 있습니다"
 if scope_report and not scope_report.get("error"):
     html = [f'<div class="ai"><div class="lbl">AI 동향 분석 · {esc(scope_report.get("model"))}</div>',
             f"<h3>{esc(scope_report.get('headline'))}</h3><p>{esc(scope_report.get('summary'))}</p>"]
@@ -895,6 +914,10 @@ if scope_report and not scope_report.get("error"):
     if scope_report.get("watchList"):
         html.append(f"<p><b>지켜볼 것</b> {' · '.join(esc(w) for w in scope_report['watchList'])}</p>")
     st.markdown("".join(html) + "</div>", unsafe_allow_html=True)
+    if week_note:
+        st.caption(week_note)
+elif kind == "family" and available:
+    st.caption("이 주차에는 이 계열의 동향 분석이 없습니다. 다른 주차를 골라 보세요.")
 
 left, right = st.columns([2, 1])
 with left:
