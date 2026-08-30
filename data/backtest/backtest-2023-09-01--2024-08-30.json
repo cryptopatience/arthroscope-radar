@@ -1,0 +1,1474 @@
+{
+  "meta": {
+    "pastFrom": "2023-09-01",
+    "pastTo": "2024-08-30",
+    "futureFrom": "2024-08-31",
+    "futureTo": "2026-08-30",
+    "pastArticles": 1669,
+    "futureArticles": 3450,
+    "ideas": 14,
+    "judged": 14,
+    "freshJudgeCalls": 14,
+    "candidateCap": 40,
+    "journals": [
+      "joa",
+      "at",
+      "bjj",
+      "jbjsam",
+      "corr",
+      "acta",
+      "kssta",
+      "arthroscopy",
+      "ajsm",
+      "ojsm"
+    ],
+    "generatedAt": "2026-08-30T21:17:56.566906+09:00"
+  },
+  "summary": {
+    "byVerdict": {
+      "structural": {
+        "count": 14,
+        "filledByRatio": 2,
+        "filledByCount": 13,
+        "filledEither": 13
+      }
+    },
+    "scored": 14,
+    "skipped": []
+  },
+  "outcomes": [
+    {
+      "ideaId": "전방십자인대·반월상::cross_로봇·내비게이션",
+      "cluster": "전방십자인대·반월상",
+      "gapId": "cross_로봇·내비게이션",
+      "gapCategory": "clinical_utility_implementation",
+      "title": "전방십자인대·반월상과 로봇·내비게이션을 함께 보면 무엇이 달라지는가?",
+      "verdict": "structural",
+      "pastRatio": 0.0024,
+      "pastBaseline": 0.1176,
+      "pastN": 415,
+      "skipped": "",
+      "note": "",
+      "futureN": 839,
+      "futureObserved": 6,
+      "futureRatio": 0.0072,
+      "futureBaseline": 0.1282,
+      "futureZ": 10.49,
+      "futureEffectSize": 0.563,
+      "futureTemporal": "persistent",
+      "ratioGain": 0.0048,
+      "expectedAtPastRate": 2.0,
+      "filledByRatio": false,
+      "filledByCount": true,
+      "filledEither": true,
+      "ratioNote": "공백 유지 (탐지 조건 계속 만족)"
+    },
+    {
+      "ideaId": "정렬·생체역학::cross_형평성",
+      "cluster": "정렬·생체역학",
+      "gapId": "cross_형평성",
+      "gapCategory": "population_external_validity",
+      "title": "정렬·생체역학과 형평성을 함께 보면 무엇이 달라지는가?",
+      "verdict": "structural",
+      "pastRatio": 0.0101,
+      "pastBaseline": 0.0849,
+      "pastN": 298,
+      "skipped": "",
+      "note": "",
+      "futureN": 576,
+      "futureObserved": 12,
+      "futureRatio": 0.0208,
+      "futureBaseline": 0.0854,
+      "futureZ": 5.54,
+      "futureEffectSize": 0.303,
+      "futureTemporal": "persistent",
+      "ratioGain": 0.0107,
+      "expectedAtPastRate": 5.8,
+      "filledByRatio": false,
+      "filledByCount": true,
+      "filledEither": true,
+      "ratioNote": "공백 유지 (탐지 조건 계속 만족)"
+    },
+    {
+      "ideaId": "감염::cross_로봇·내비게이션",
+      "cluster": "감염",
+      "gapId": "cross_로봇·내비게이션",
+      "gapCategory": "clinical_utility_implementation",
+      "title": "감염과 로봇·내비게이션을 함께 보면 무엇이 달라지는가?",
+      "verdict": "structural",
+      "pastRatio": 0.0296,
+      "pastBaseline": 0.0868,
+      "pastN": 169,
+      "skipped": "",
+      "note": "",
+      "futureN": 370,
+      "futureObserved": 20,
+      "futureRatio": 0.0541,
+      "futureBaseline": 0.0931,
+      "futureZ": 2.59,
+      "futureEffectSize": 0.151,
+      "futureTemporal": "persistent",
+      "ratioGain": 0.0245,
+      "expectedAtPastRate": 11.0,
+      "filledByRatio": true,
+      "filledByCount": true,
+      "filledEither": true,
+      "ratioNote": "공백 해소 (비율 상승 + 탐지 조건 이탈)"
+    },
+    {
+      "ideaId": "감염::cross_스포츠 복귀",
+      "cluster": "감염",
+      "gapId": "cross_스포츠 복귀",
+      "gapCategory": "comparator",
+      "title": "감염과 스포츠 복귀를 함께 보면 무엇이 달라지는가?",
+      "verdict": "structural",
+      "pastRatio": 0.0,
+      "pastBaseline": 0.098,
+      "pastN": 169,
+      "skipped": "",
+      "note": "",
+      "futureN": 370,
+      "futureObserved": 2,
+      "futureRatio": 0.0054,
+      "futureBaseline": 0.1083,
+      "futureZ": 6.37,
+      "futureEffectSize": 0.523,
+      "futureTemporal": "persistent",
+      "ratioGain": 0.0054,
+      "expectedAtPastRate": 0.0,
+      "filledByRatio": false,
+      "filledByCount": false,
+      "filledEither": false,
+      "ratioNote": "공백 유지 (탐지 조건 계속 만족)"
+    },
+    {
+      "ideaId": "감염::prom_measurement",
+      "cluster": "감염",
+      "gapId": "prom_measurement",
+      "gapCategory": "outcome_measurement",
+      "title": "감염 연구는 환자가 보고한 결과를 함께 재고 있는가?",
+      "verdict": "structural",
+      "pastRatio": 0.2604,
+      "pastBaseline": 0.4697,
+      "pastN": 169,
+      "skipped": "",
+      "note": "",
+      "futureN": 370,
+      "futureObserved": 84,
+      "futureRatio": 0.227,
+      "futureBaseline": 0.4761,
+      "futureZ": 9.59,
+      "futureEffectSize": 0.53,
+      "futureTemporal": "persistent",
+      "ratioGain": -0.0334,
+      "expectedAtPastRate": 96.3,
+      "filledByRatio": false,
+      "filledByCount": true,
+      "filledEither": true,
+      "ratioNote": "공백 유지 (탐지 조건 계속 만족)"
+    },
+    {
+      "ideaId": "정렬·생체역학::external_validation",
+      "cluster": "정렬·생체역학",
+      "gapId": "external_validation",
+      "gapCategory": "population_external_validity",
+      "title": "정렬·생체역학의 결과는 다른 기관·집단에서도 재현되는가?",
+      "verdict": "structural",
+      "pastRatio": 0.0403,
+      "pastBaseline": 0.1306,
+      "pastN": 298,
+      "skipped": "",
+      "note": "",
+      "futureN": 576,
+      "futureObserved": 58,
+      "futureRatio": 0.1007,
+      "futureBaseline": 0.1587,
+      "futureZ": 3.81,
+      "futureEffectSize": 0.174,
+      "futureTemporal": "persistent",
+      "ratioGain": 0.0604,
+      "expectedAtPastRate": 23.2,
+      "filledByRatio": true,
+      "filledByCount": true,
+      "filledEither": true,
+      "ratioNote": "공백 해소 (비율 상승 + 탐지 조건 이탈)"
+    },
+    {
+      "ideaId": "형평성::prom_measurement",
+      "cluster": "형평성",
+      "gapId": "prom_measurement",
+      "gapCategory": "outcome_measurement",
+      "title": "형평성 연구는 환자가 보고한 결과를 함께 재고 있는가?",
+      "verdict": "structural",
+      "pastRatio": 0.2048,
+      "pastBaseline": 0.4581,
+      "pastN": 83,
+      "skipped": "",
+      "note": "",
+      "futureN": 175,
+      "futureObserved": 56,
+      "futureRatio": 0.32,
+      "futureBaseline": 0.4481,
+      "futureZ": 3.41,
+      "futureEffectSize": 0.264,
+      "futureTemporal": "narrowing",
+      "ratioGain": 0.1152,
+      "expectedAtPastRate": 35.8,
+      "filledByRatio": false,
+      "filledByCount": true,
+      "filledEither": true,
+      "ratioNote": "공백 유지 (탐지 조건 계속 만족)"
+    },
+    {
+      "ideaId": "감염::prospective_design",
+      "cluster": "감염",
+      "gapId": "prospective_design",
+      "gapCategory": "methodology",
+      "title": "감염의 후향적 결론을 전향적으로 재현할 수 있는가?",
+      "verdict": "structural",
+      "pastRatio": 0.1243,
+      "pastBaseline": 0.2288,
+      "pastN": 169,
+      "skipped": "",
+      "note": "",
+      "futureN": 370,
+      "futureObserved": 49,
+      "futureRatio": 0.1324,
+      "futureBaseline": 0.2515,
+      "futureZ": 5.28,
+      "futureEffectSize": 0.306,
+      "futureTemporal": "persistent",
+      "ratioGain": 0.0081,
+      "expectedAtPastRate": 46.0,
+      "filledByRatio": false,
+      "filledByCount": true,
+      "filledEither": true,
+      "ratioNote": "공백 유지 (탐지 조건 계속 만족)"
+    },
+    {
+      "ideaId": "스포츠 복귀::prom_interpretation",
+      "cluster": "스포츠 복귀",
+      "gapId": "prom_interpretation",
+      "gapCategory": "outcome_measurement",
+      "title": "스포츠 복귀의 PROM 변화는 환자에게 의미 있는 크기인가?",
+      "verdict": "structural",
+      "pastRatio": 0.0877,
+      "pastBaseline": 0.2327,
+      "pastN": 57,
+      "skipped": "",
+      "note": "",
+      "futureN": 124,
+      "futureObserved": 22,
+      "futureRatio": 0.1774,
+      "futureBaseline": 0.2761,
+      "futureZ": 2.46,
+      "futureEffectSize": 0.237,
+      "futureTemporal": "widening",
+      "ratioGain": 0.0897,
+      "expectedAtPastRate": 10.9,
+      "filledByRatio": false,
+      "filledByCount": true,
+      "filledEither": true,
+      "ratioNote": "공백 유지 (탐지 조건 계속 만족)"
+    },
+    {
+      "ideaId": "환자요인::prospective_design",
+      "cluster": "환자요인",
+      "gapId": "prospective_design",
+      "gapCategory": "methodology",
+      "title": "환자요인의 후향적 결론을 전향적으로 재현할 수 있는가?",
+      "verdict": "structural",
+      "pastRatio": 0.1452,
+      "pastBaseline": 0.2312,
+      "pastN": 241,
+      "skipped": "",
+      "note": "",
+      "futureN": 603,
+      "futureObserved": 102,
+      "futureRatio": 0.1692,
+      "futureBaseline": 0.2545,
+      "futureZ": 4.81,
+      "futureEffectSize": 0.21,
+      "futureTemporal": "persistent",
+      "ratioGain": 0.024,
+      "expectedAtPastRate": 87.6,
+      "filledByRatio": false,
+      "filledByCount": true,
+      "filledEither": true,
+      "ratioNote": "공백 유지 (탐지 조건 계속 만족)"
+    },
+    {
+      "ideaId": "AI·예측::direct_comparison",
+      "cluster": "AI·예측",
+      "gapId": "direct_comparison",
+      "gapCategory": "comparator",
+      "title": "AI·예측에서 선택지끼리의 직접 비교가 있는가?",
+      "verdict": "structural",
+      "pastRatio": 0.3864,
+      "pastBaseline": 0.6079,
+      "pastN": 44,
+      "skipped": "",
+      "note": "",
+      "futureN": 102,
+      "futureObserved": 42,
+      "futureRatio": 0.4118,
+      "futureBaseline": 0.6374,
+      "futureZ": 4.74,
+      "futureEffectSize": 0.456,
+      "futureTemporal": "widening",
+      "ratioGain": 0.0254,
+      "expectedAtPastRate": 39.4,
+      "filledByRatio": false,
+      "filledByCount": true,
+      "filledEither": true,
+      "ratioNote": "공백 유지 (탐지 조건 계속 만족)"
+    },
+    {
+      "ideaId": "비용·보건정책::longterm_followup",
+      "cluster": "비용·보건정책",
+      "gapId": "longterm_followup",
+      "gapCategory": "longterm_durability",
+      "title": "비용·보건정책의 초기 결과는 5년 뒤에도 유지되는가?",
+      "verdict": "structural",
+      "pastRatio": 0.0606,
+      "pastBaseline": 0.2027,
+      "pastN": 66,
+      "skipped": "",
+      "note": "",
+      "futureN": 135,
+      "futureObserved": 15,
+      "futureRatio": 0.1111,
+      "futureBaseline": 0.2613,
+      "futureZ": 3.97,
+      "futureEffectSize": 0.393,
+      "futureTemporal": "persistent",
+      "ratioGain": 0.0505,
+      "expectedAtPastRate": 8.2,
+      "filledByRatio": false,
+      "filledByCount": true,
+      "filledEither": true,
+      "ratioNote": "공백 유지 (탐지 조건 계속 만족)"
+    },
+    {
+      "ideaId": "외래·회복::longterm_followup",
+      "cluster": "외래·회복",
+      "gapId": "longterm_followup",
+      "gapCategory": "longterm_durability",
+      "title": "외래·회복의 초기 결과는 5년 뒤에도 유지되는가?",
+      "verdict": "structural",
+      "pastRatio": 0.1032,
+      "pastBaseline": 0.2056,
+      "pastN": 126,
+      "skipped": "",
+      "note": "",
+      "futureN": 340,
+      "futureObserved": 45,
+      "futureRatio": 0.1324,
+      "futureBaseline": 0.2723,
+      "futureZ": 5.8,
+      "futureEffectSize": 0.353,
+      "futureTemporal": "persistent",
+      "ratioGain": 0.0292,
+      "expectedAtPastRate": 35.1,
+      "filledByRatio": false,
+      "filledByCount": true,
+      "filledEither": true,
+      "ratioNote": "공백 유지 (탐지 조건 계속 만족)"
+    },
+    {
+      "ideaId": "AI·예측::longterm_followup",
+      "cluster": "AI·예측",
+      "gapId": "longterm_followup",
+      "gapCategory": "longterm_durability",
+      "title": "AI·예측의 초기 결과는 5년 뒤에도 유지되는가?",
+      "verdict": "structural",
+      "pastRatio": 0.0682,
+      "pastBaseline": 0.1998,
+      "pastN": 44,
+      "skipped": "",
+      "note": "",
+      "futureN": 102,
+      "futureObserved": 13,
+      "futureRatio": 0.1275,
+      "futureBaseline": 0.2585,
+      "futureZ": 3.02,
+      "futureEffectSize": 0.337,
+      "futureTemporal": "widening",
+      "ratioGain": 0.0593,
+      "expectedAtPastRate": 7.0,
+      "filledByRatio": false,
+      "filledByCount": true,
+      "filledEither": true,
+      "ratioNote": "공백 유지 (탐지 조건 계속 만족)"
+    }
+  ],
+  "judgments": {
+    "전방십자인대·반월상::cross_로봇·내비게이션": {
+      "model": "gemini-3.1-pro-preview",
+      "judgmentInput": {
+        "clusterId": "전방십자인대·반월상",
+        "gapId": "cross_로봇·내비게이션",
+        "gapCategory": "clinical_utility_implementation",
+        "gapSubtype": "",
+        "canonicalOutcome": {
+          "primary": [
+            "IKDC/KOOS",
+            "graft·repair failure",
+            "재수술",
+            "안정성",
+            "근력·기능검사",
+            "스포츠 복귀"
+          ],
+          "reviewed": true,
+          "subtypeNote": ""
+        },
+        "promRole": "primary",
+        "title": "전방십자인대·반월상과 로봇·내비게이션을 함께 보면 무엇이 달라지는가?",
+        "rationale": "전방십자인대·반월상 415편, 로봇·내비게이션 98편이 각각 축적되어 있는데 둘을 함께 다룬 초록은 1편입니다(같은 계열 안에서 두 주제 크기대로면 27편). 각자 성숙한 두 흐름이 아직 만나지 않은 지점이라, 교차 지점에서 새 질문이 나오기 쉽습니다.",
+        "clusterStatistics": {
+          "n": 415,
+          "observed": 1,
+          "ratio": 0.0024,
+          "baseline": 0.1176,
+          "z": 7.28,
+          "effectSize": 0.602,
+          "sufficiency": "충분"
+        },
+        "evidencePmids": [
+          "39214073",
+          "39218238"
+        ],
+        "representativeTitles": [
+          "Comparing Rates of Minimal Clinically Important Difference Between Manual and Robotic-Assisted Total Knee Arthroplasty.",
+          "Load Distribution After Serial Resection of the Posterior Horn of the Lateral Meniscus and Subsequent Meniscal Allograft Transplant: A Biomechanical Study.",
+          "Differences in Graft Tear Configurations in Medial and Lateral Meniscal Allograft Transplantation: Objective Evaluations Using Magnetic Resonance Imaging.",
+          "The Development and Execution of An Orthopaedic Sports Medicine Fellowship Surgical Skills Assessment.",
+          "Patellar bone defect grafting does not reduce anterior knee pain after bone-patellar tendon-bone anterior cruciate ligament reconstruction.",
+          "Decreasing Incidence of Anterior Cruciate Ligament Tears and Increasing Utilization of Anterior Cruciate Ligament Reconstruction in the United States From 2010 to 2020.",
+          "No Clinically Significant Differences in Outcomes After Anterior Cruciate Ligament Reconstruction When Comparing Quadriceps, Bone-Patellar Tendon-Bone, and Hamstring Autografts of 9 mm or Greater.",
+          "No Clinical Advantage of Harvesting a Patellar Bone Block Compared With All Soft-Tissue Graft in Primary Quadriceps Tendon Anterior Cruciate Ligament Reconstruction.",
+          "Revision Anterior Cruciate Ligament Reconstruction in Pediatric and Adolescent Patients Yields Low Rates of Graft Failure and Good Functional Scores, but Low Rates of Return to Sport: A Systematic Review.",
+          "The Statistical Fragility of Lateral Extra-articular Tenodesis Research: A Systematic Review.",
+          "Neurocognitive demands reduce jump distance and coordination variability of the injured leg in athletes after anterior cruciate ligament reconstruction.",
+          "Combining a digital health application with standard care significantly enhances rehabilitation outcomes for ACL surgery patients."
+        ],
+        "structuralPrior": "기술이 아직 타당성 검증 단계라 환자 결과까지 볼 시점이 아닐 때.",
+        "categoryNote": "지표는 좋아졌는데 그것이 진료 결정이나 환자 결과를 바꾸는지 모른다",
+        "scope": "백테스트 · 선택 저널 전체",
+        "period": "2023-09-01–2024-08-30"
+      },
+      "judgmentInputHash": "sha256:aee0886d1f8464da363281fff98db7a4ebf87c0a52895557abcc3f8f0f81473b",
+      "promptVersion": "6",
+      "judgmentSchemaVersion": "1",
+      "verdict": "structural",
+      "reason": "전방십자인대 및 반월상 연골 수술에서 로봇이나 내비게이션의 적용은 뼈 터널 위치의 정확도 향상 등 기술적 타당성을 검증하는 단계에 주로 머물러 있습니다. 아직 표준 술기로 널리 채택될 만큼의 임상적 이점이 확립되지 않았으므로, 환자 결과나 진료 결정의 변화를 평가하는 임상적 유용성 연구가 부족한 것은 연구 발전 단계상 자연스러운 구조적 특성입니다.",
+      "fieldStandard": "IKDC/KOOS, graft·repair failure, 재수술, 안정성, 근력·기능검사, 스포츠 복귀",
+      "stability": {
+        "runs": 5,
+        "agree": 5,
+        "rate": 1.0,
+        "verdicts": {
+          "structural": 5
+        },
+        "failed": 0
+      },
+      "consensus": "agree",
+      "panel": [
+        {
+          "model": "gemini-3.6-flash",
+          "provider": "gemini",
+          "verdict": "structural"
+        }
+      ]
+    },
+    "정렬·생체역학::cross_형평성": {
+      "model": "gemini-3.1-pro-preview",
+      "judgmentInput": {
+        "clusterId": "정렬·생체역학",
+        "gapId": "cross_형평성",
+        "gapCategory": "population_external_validity",
+        "gapSubtype": "",
+        "canonicalOutcome": {
+          "primary": [
+            "정렬 정확도",
+            "outlier 비율",
+            "합병증",
+            "수술 효율"
+          ],
+          "reviewed": true,
+          "subtypeNote": ""
+        },
+        "promRole": "contextual",
+        "title": "정렬·생체역학과 형평성을 함께 보면 무엇이 달라지는가?",
+        "rationale": "정렬·생체역학 298편, 형평성 83편이 각각 축적되어 있는데 둘을 함께 다룬 초록은 3편입니다(같은 계열 안에서 두 주제 크기대로면 20편). 각자 성숙한 두 흐름이 아직 만나지 않은 지점이라, 교차 지점에서 새 질문이 나오기 쉽습니다.",
+        "clusterStatistics": {
+          "n": 298,
+          "observed": 3,
+          "ratio": 0.0101,
+          "baseline": 0.0849,
+          "z": 4.64,
+          "effectSize": 0.39,
+          "sufficiency": "제한적"
+        },
+        "evidencePmids": [
+          "39207361",
+          "39214428"
+        ],
+        "representativeTitles": [
+          "Load Distribution After Serial Resection of the Posterior Horn of the Lateral Meniscus and Subsequent Meniscal Allograft Transplant: A Biomechanical Study.",
+          "Implications for Femoral Tunnel Placement in Medial Patellofemoral Ligament Reconstruction Considering the Sagittal Trochlear Groove Curvature in Severe Trochlear Dysplasia Before and After Deepening Trochleoplasty.",
+          "Decreasing Incidence of Anterior Cruciate Ligament Tears and Increasing Utilization of Anterior Cruciate Ligament Reconstruction in the United States From 2010 to 2020.",
+          "Neurocognitive demands reduce jump distance and coordination variability of the injured leg in athletes after anterior cruciate ligament reconstruction.",
+          "Failure rate of isolated medial meniscus repair in the stable knee: Systematic review and meta-analysis.",
+          "Preoperative Abnormal Posture Improves After Total Knee Arthroplasty: Knee-Hip-Spine Syndrome.",
+          "Body Mass Index is Not an Appropriate Proxy for the Condition of Peri-Incisional Adiposity in Primary Total Joint Arthroplasty Patients.",
+          "Early Compared with Delayed Reconstruction in Multiligament Knee Injury: A Retrospective Propensity Analysis.",
+          "Overconstraint Associated With a Modified Lemaire Lateral Extra-Articular Tenodesis Is Decreased by Using an Anterior Femoral Insertion Point in a Cadaveric Model.",
+          "Influence of Increased Joint Line Obliquity on Survivorship After Lateral Closing-Wedge High Tibial Osteotomy.",
+          "Relationship Between Revision Rate, Osteoarthritis, and Obesity for ACL Reconstruction: A Nationwide Retrospective Cohort Study.",
+          "No Difference in 10-year Clinical or Radiographic Outcomes Between Kinematic and Mechanical Alignment in TKA: A Randomized Trial."
+        ],
+        "structuralPrior": "그 환자군이 해당 술기의 대상이 아닐 때, 또는 단일 기관 자료만 존재하는 것이 자연스러운 신기술 초기 단계.",
+        "categoryNote": "특정 환자군에서 따로 검증되지 않았거나 외부 코호트 검증이 없다",
+        "scope": "백테스트 · 선택 저널 전체",
+        "period": "2023-09-01–2024-08-30"
+      },
+      "judgmentInputHash": "sha256:ca2eaabb8d7a09b39f27637c30929cc837df24a43e520f5641ad02f6dba22381",
+      "promptVersion": "6",
+      "judgmentSchemaVersion": "1",
+      "verdict": "structural",
+      "reason": "생체역학 및 정렬 연구는 주로 물리적 힘과 해부학적 구조를 다루는 반면, 형평성 연구는 사회경제적 요인이나 의료 접근성을 분석하므로 두 분야는 연구 목적과 방법론이 근본적으로 다릅니다. 인종이나 성별에 따른 해부학적 차이는 변이로 다루어질 뿐 보건의료적 형평성 지표와 직접 연결되지 않으므로, 이 교차 지점의 공백은 분야의 자연스러운 구조적 특성입니다.",
+      "fieldStandard": "정렬 정확도, outlier 비율, 합병증, 수술 효율",
+      "stability": {
+        "runs": 5,
+        "agree": 5,
+        "rate": 1.0,
+        "verdicts": {
+          "structural": 5
+        },
+        "failed": 0
+      },
+      "consensus": "agree",
+      "panel": [
+        {
+          "model": "gemini-3.6-flash",
+          "provider": "gemini",
+          "verdict": "structural"
+        }
+      ]
+    },
+    "감염::cross_로봇·내비게이션": {
+      "model": "gemini-3.1-pro-preview",
+      "judgmentInput": {
+        "clusterId": "감염",
+        "gapId": "cross_로봇·내비게이션",
+        "gapCategory": "clinical_utility_implementation",
+        "gapSubtype": "",
+        "canonicalOutcome": {
+          "primary": [
+            "감염 박멸",
+            "재감염률",
+            "임플란트 생존"
+          ],
+          "reviewed": true,
+          "subtypeNote": ""
+        },
+        "promRole": "secondary",
+        "title": "감염과 로봇·내비게이션을 함께 보면 무엇이 달라지는가?",
+        "rationale": "감염 169편, 로봇·내비게이션 98편이 각각 축적되어 있는데 둘을 함께 다룬 초록은 5편입니다(같은 계열 안에서 두 주제 크기대로면 16편). 각자 성숙한 두 흐름이 아직 만나지 않은 지점이라, 교차 지점에서 새 질문이 나오기 쉽습니다.",
+        "clusterStatistics": {
+          "n": 169,
+          "observed": 5,
+          "ratio": 0.0296,
+          "baseline": 0.0868,
+          "z": 2.64,
+          "effectSize": 0.253,
+          "sufficiency": "제한적"
+        },
+        "evidencePmids": [
+          "39178974",
+          "39218238"
+        ],
+        "representativeTitles": [
+          "Comparing Rates of Minimal Clinically Important Difference Between Manual and Robotic-Assisted Total Knee Arthroplasty.",
+          "Tranexamic Acid Led to Improved Safety of Total Knee Arthroplasty in Jehovah's Witness Patients: A Multicentered Matched Study.",
+          "Body Mass Index is Not an Appropriate Proxy for the Condition of Peri-Incisional Adiposity in Primary Total Joint Arthroplasty Patients.",
+          "Above-Knee Amputation Following Chronically Infected Total Knee Arthroplasty: Patient-Reported Satisfaction and Functional Outcomes.",
+          "No Difference in 10-year Clinical or Radiographic Outcomes Between Kinematic and Mechanical Alignment in TKA: A Randomized Trial.",
+          "High Rates of Early Septic Failure, but Low Rates of Aseptic Loosening After Revision Total Knee Arthroplasty With Contemporary Rotating-Hinge Prostheses.",
+          "The Effect of Periprosthetic Fractures Following Total Hip and Knee Arthroplasty on Long-Term Functional Outcomes and Quality of Life.",
+          "Presoaking hamstring autograft with vancomycin does not jeopardize its biomechanical properties, including graft elongation, after cyclic loading.",
+          "Robotic Arm-Assisted Total Knee Arthroplasty Results in Smaller Femoral Components and Larger Tibial Baseplates Than the Manual Technique.",
+          "Survivorship of Modern Cementless Total Knee Arthroplasty: Analysis From the Canadian Joint Replacement Registry.",
+          "Different intraoperative joint laxity patterns do not impact clinical outcomes in robotic-assisted medial unicompartmental knee replacement with 1-to-1 surface reconstruction.",
+          "Patient-Specific Distal Femoral Guides Optimize Cartilage Topography Matching in Osteochondral Allograft Transplantations."
+        ],
+        "structuralPrior": "기술이 아직 타당성 검증 단계라 환자 결과까지 볼 시점이 아닐 때.",
+        "categoryNote": "지표는 좋아졌는데 그것이 진료 결정이나 환자 결과를 바꾸는지 모른다",
+        "scope": "백테스트 · 선택 저널 전체",
+        "period": "2023-09-01–2024-08-30"
+      },
+      "judgmentInputHash": "sha256:369442a7d8e8483d5ff9abdf8b494ade512a7a245d5e6c6f65cff15fa059b2dd",
+      "promptVersion": "6",
+      "judgmentSchemaVersion": "1",
+      "verdict": "structural",
+      "reason": "감염 후 재치환술과 같은 복잡한 해부학적 변형 상태에서 로봇이나 내비게이션을 적용하는 것은 아직 기술적 타당성이나 초기 적용 가능성을 검증하는 단계에 가깝습니다. 감염 치료의 최우선 목표는 감염 박멸이므로, 이 교차 지점에서 임상적 유용성이나 장기 환자 결과가 본격적으로 보고되지 않는 것은 해당 연구 단계의 자연스러운 구조적 특성입니다.",
+      "fieldStandard": "감염 박멸, 재감염률, 임플란트 생존",
+      "stability": {
+        "runs": 5,
+        "agree": 5,
+        "rate": 1.0,
+        "verdicts": {
+          "structural": 5
+        },
+        "failed": 0
+      },
+      "consensus": "agree",
+      "panel": [
+        {
+          "model": "gemini-3.6-flash",
+          "provider": "gemini",
+          "verdict": "structural"
+        }
+      ]
+    },
+    "감염::cross_스포츠 복귀": {
+      "model": "gemini-3.1-pro-preview",
+      "judgmentInput": {
+        "clusterId": "감염",
+        "gapId": "cross_스포츠 복귀",
+        "gapCategory": "comparator",
+        "gapSubtype": "",
+        "canonicalOutcome": {
+          "primary": [
+            "감염 박멸",
+            "재감염률",
+            "임플란트 생존"
+          ],
+          "reviewed": true,
+          "subtypeNote": ""
+        },
+        "promRole": "secondary",
+        "title": "감염과 스포츠 복귀를 함께 보면 무엇이 달라지는가?",
+        "rationale": "감염 169편, 스포츠 복귀 105편이 각각 축적되어 있는데 둘을 함께 다룬 초록은 0편입니다(같은 계열 안에서 두 주제 크기대로면 5편). 각자 성숙한 두 흐름이 아직 만나지 않은 지점이라, 교차 지점에서 새 질문이 나오기 쉽습니다.",
+        "clusterStatistics": {
+          "n": 169,
+          "observed": 0,
+          "ratio": 0.0,
+          "baseline": 0.098,
+          "z": 4.29,
+          "effectSize": 0.637,
+          "sufficiency": "충분"
+        },
+        "evidencePmids": [
+          "39178974",
+          "39189158"
+        ],
+        "representativeTitles": [
+          "Revision Anterior Cruciate Ligament Reconstruction in Pediatric and Adolescent Patients Yields Low Rates of Graft Failure and Good Functional Scores, but Low Rates of Return to Sport: A Systematic Review.",
+          "Neurocognitive demands reduce jump distance and coordination variability of the injured leg in athletes after anterior cruciate ligament reconstruction.",
+          "After 40 days intra-articular injury, risk profile increases linearly with time to surgery in adolescent patients undergoing primary anterior cruciate ligament reconstruction.",
+          "Tranexamic Acid Led to Improved Safety of Total Knee Arthroplasty in Jehovah's Witness Patients: A Multicentered Matched Study.",
+          "Body Mass Index is Not an Appropriate Proxy for the Condition of Peri-Incisional Adiposity in Primary Total Joint Arthroplasty Patients.",
+          "Above-Knee Amputation Following Chronically Infected Total Knee Arthroplasty: Patient-Reported Satisfaction and Functional Outcomes.",
+          "Lateral extra-articular tenodesis at primary ACL reconstruction increases career length in professional rugby players.",
+          "The 25 Most Cited Articles in Pediatric Orthopaedic Sports Medicine.",
+          "Effect of Different Screw Materials on ACL Reconstruction With the Tape Locking Screw Technique: A Retrospective Study From the FAST Cohort.",
+          "Impaired Symmetry in Single-Leg Vertical Jump and Drop Jump Performance 7 Months After ACL Reconstruction.",
+          "Prevalence of Concomitant Injuries by Sport in Pediatric Patients With ACL Rupture.",
+          "No Difference in 10-year Clinical or Radiographic Outcomes Between Kinematic and Mechanical Alignment in TKA: A Randomized Trial."
+        ],
+        "structuralPrior": "연구 단계상 비교군이 아직 없을 때. 예) 단일군 feasibility·초기 안전성 연구, 표준 대안이 없는 술기.",
+        "categoryNote": "임상에서 실제로 갈리는 선택지끼리의 직접 비교가 없다",
+        "scope": "백테스트 · 선택 저널 전체",
+        "period": "2023-09-01–2024-08-30"
+      },
+      "judgmentInputHash": "sha256:2a7a7fce2cdb51a3b1979e29947860e8c9ffff2dfe5604deee3f6d9bd0bab5bb",
+      "promptVersion": "6",
+      "judgmentSchemaVersion": "1",
+      "verdict": "structural",
+      "reason": "무릎 수술 후 감염은 주로 인공관절 치환술 환자군에서 발생하며, 이들의 주된 치료 목표는 관절 보존과 기본 기능 회복이므로 스포츠 복귀를 평가하기 어렵습니다. 반면 전방십자인대 재건술 등 스포츠 의학 분야에서는 감염 발생률이 매우 낮아, 감염 후 스포츠 복귀를 주제로 유의미한 비교 연구를 구성하는 것 자체가 구조적으로 한계가 있습니다.",
+      "fieldStandard": "감염 박멸, 재감염률, 임플란트 생존",
+      "stability": {
+        "runs": 5,
+        "agree": 5,
+        "rate": 1.0,
+        "verdicts": {
+          "structural": 5
+        },
+        "failed": 0
+      },
+      "consensus": "agree",
+      "panel": [
+        {
+          "model": "gemini-3.6-flash",
+          "provider": "gemini",
+          "verdict": "structural"
+        }
+      ]
+    },
+    "감염::prom_measurement": {
+      "model": "gemini-3.1-pro-preview",
+      "judgmentInput": {
+        "clusterId": "감염",
+        "gapId": "prom_measurement",
+        "gapCategory": "outcome_measurement",
+        "gapSubtype": "",
+        "canonicalOutcome": {
+          "primary": [
+            "감염 박멸",
+            "재감염률",
+            "임플란트 생존"
+          ],
+          "reviewed": true,
+          "subtypeNote": ""
+        },
+        "promRole": "secondary",
+        "title": "감염 연구는 환자가 보고한 결과를 함께 재고 있는가?",
+        "rationale": "이 범위에서 감염은 169편(12%)이고 전반기 대비 -5% 변화했습니다. 환자보고결과를 함께 잰 초록은 44편(26%)으로, 나머지 문헌의 47%보다 5.5표준편차 낮습니다(효과크기 0.44). 이 분야의 기준 결과변수는 감염 박멸, 재감염률, 임플란트 생존이며 PROM은 이차적입니다. 그럼에도 그 지표가 좋아진 환자의 기능·삶의 질이 함께 좋아지는지는 따로 물을 수 있습니다.",
+        "clusterStatistics": {
+          "n": 169,
+          "observed": 44,
+          "ratio": 0.2604,
+          "baseline": 0.4697,
+          "z": 5.45,
+          "effectSize": 0.439,
+          "sufficiency": "제한적"
+        },
+        "evidencePmids": [
+          "39178972",
+          "39178974"
+        ],
+        "representativeTitles": [
+          "Tranexamic Acid Led to Improved Safety of Total Knee Arthroplasty in Jehovah's Witness Patients: A Multicentered Matched Study.",
+          "Body Mass Index is Not an Appropriate Proxy for the Condition of Peri-Incisional Adiposity in Primary Total Joint Arthroplasty Patients.",
+          "Above-Knee Amputation Following Chronically Infected Total Knee Arthroplasty: Patient-Reported Satisfaction and Functional Outcomes.",
+          "No Difference in 10-year Clinical or Radiographic Outcomes Between Kinematic and Mechanical Alignment in TKA: A Randomized Trial.",
+          "High Rates of Early Septic Failure, but Low Rates of Aseptic Loosening After Revision Total Knee Arthroplasty With Contemporary Rotating-Hinge Prostheses.",
+          "The Effect of Periprosthetic Fractures Following Total Hip and Knee Arthroplasty on Long-Term Functional Outcomes and Quality of Life.",
+          "Presoaking hamstring autograft with vancomycin does not jeopardize its biomechanical properties, including graft elongation, after cyclic loading.",
+          "Survivorship of Modern Cementless Total Knee Arthroplasty: Analysis From the Canadian Joint Replacement Registry.",
+          "Total knee arthroplasty using a cemented single-radius, condylar-stabilized design performed without posterior cruciate ligament sacrifice.",
+          "Comparison of Trends and Complications of Unicompartmental Knee Arthroplasty Versus Periarticular Knee Osteotomy Among ABOS Part II Oral Examination Candidates.",
+          "Use of Hinged Implants for Multi-Stage Revision Knee Arthroplasty for Severe Periprosthetic Joint Infection: Remission Rate and Outcomes After a Minimum Follow-Up of Five Years.",
+          "In Vivo Intra-Articular Antibiotic Concentrations at 24 Hours After TKA Fall Below the Minimum Inhibitory Concentration for Most Bacteria: A Randomized Study of Commercially Available Bone Cement."
+        ],
+        "structuralPrior": "그 분야의 1차 결과가 애초에 다른 지표일 때. 예) 감염 연구의 1차 결과는 균 박멸이지 환자보고 점수가 아니다.",
+        "categoryNote": "결과를 재고 해석하는 방식이 비어 있다 (MCID·PASS·표준화 지표)",
+        "scope": "백테스트 · 선택 저널 전체",
+        "period": "2023-09-01–2024-08-30"
+      },
+      "judgmentInputHash": "sha256:bab5c56b1a5a69e4fc5e9377530a12cb7a69c710757ae67799169242bb011dc1",
+      "promptVersion": "6",
+      "judgmentSchemaVersion": "1",
+      "verdict": "structural",
+      "reason": "감염 연구의 일차적 목표는 감염의 박멸과 임플란트의 생존 및 재감염 방지이므로 환자보고결과가 주된 결과 지표로 사용되지 않는 것은 해당 분야의 자연스러운 특성입니다. 감염 치료 후의 기능 회복 평가가 부차적으로 의미가 있을 수 있으나 통계적으로 환자보고결과 보고 비율이 낮은 것은 연구 공백이라기보다 연구 목적에 따른 구조적 차이에 해당합니다.",
+      "fieldStandard": "감염 박멸, 재감염률, 임플란트 생존",
+      "stability": {
+        "runs": 5,
+        "agree": 5,
+        "rate": 1.0,
+        "verdicts": {
+          "structural": 5
+        },
+        "failed": 0
+      },
+      "consensus": "agree",
+      "panel": [
+        {
+          "model": "gemini-3.6-flash",
+          "provider": "gemini",
+          "verdict": "structural"
+        }
+      ]
+    },
+    "정렬·생체역학::external_validation": {
+      "model": "gemini-3.1-pro-preview",
+      "judgmentInput": {
+        "clusterId": "정렬·생체역학",
+        "gapId": "external_validation",
+        "gapCategory": "population_external_validity",
+        "gapSubtype": "",
+        "canonicalOutcome": {
+          "primary": [
+            "정렬 정확도",
+            "outlier 비율",
+            "합병증",
+            "수술 효율"
+          ],
+          "reviewed": true,
+          "subtypeNote": ""
+        },
+        "promRole": "contextual",
+        "title": "정렬·생체역학의 결과는 다른 기관·집단에서도 재현되는가?",
+        "rationale": "정렬·생체역학 298편 중 다기관·등록자료·외부 코호트 검증을 언급한 초록은 12편(4%)으로, 나머지 문헌의 13%보다 4.6표준편차 낮습니다. 단일 기관 결과가 다른 환자 구성·술기에서 그대로 나오는지는 따로 확인해야 합니다.",
+        "clusterStatistics": {
+          "n": 298,
+          "observed": 12,
+          "ratio": 0.0403,
+          "baseline": 0.1306,
+          "z": 4.63,
+          "effectSize": 0.335,
+          "sufficiency": "제한적"
+        },
+        "evidencePmids": [
+          "39189158",
+          "39207361"
+        ],
+        "representativeTitles": [
+          "Load Distribution After Serial Resection of the Posterior Horn of the Lateral Meniscus and Subsequent Meniscal Allograft Transplant: A Biomechanical Study.",
+          "Implications for Femoral Tunnel Placement in Medial Patellofemoral Ligament Reconstruction Considering the Sagittal Trochlear Groove Curvature in Severe Trochlear Dysplasia Before and After Deepening Trochleoplasty.",
+          "Neurocognitive demands reduce jump distance and coordination variability of the injured leg in athletes after anterior cruciate ligament reconstruction.",
+          "Failure rate of isolated medial meniscus repair in the stable knee: Systematic review and meta-analysis.",
+          "Preoperative Abnormal Posture Improves After Total Knee Arthroplasty: Knee-Hip-Spine Syndrome.",
+          "Early Compared with Delayed Reconstruction in Multiligament Knee Injury: A Retrospective Propensity Analysis.",
+          "Overconstraint Associated With a Modified Lemaire Lateral Extra-Articular Tenodesis Is Decreased by Using an Anterior Femoral Insertion Point in a Cadaveric Model.",
+          "Influence of Increased Joint Line Obliquity on Survivorship After Lateral Closing-Wedge High Tibial Osteotomy.",
+          "No Difference in 10-year Clinical or Radiographic Outcomes Between Kinematic and Mechanical Alignment in TKA: A Randomized Trial.",
+          "Serial Assessment of Factors Associated With Patient-Reported Outcomes up to 2 Years After ACL Reconstruction Using Autologous Hamstring Tendon: Results From the TMDU MAKS Study.",
+          "Presoaking hamstring autograft with vancomycin does not jeopardize its biomechanical properties, including graft elongation, after cyclic loading.",
+          "Femoral cartilage thickness measured on MRI varies among individuals: Time to deepen one of the principles of kinematic alignment in total knee arthroplasty. A systematic review."
+        ],
+        "structuralPrior": "그 환자군이 해당 술기의 대상이 아닐 때, 또는 단일 기관 자료만 존재하는 것이 자연스러운 신기술 초기 단계.",
+        "categoryNote": "특정 환자군에서 따로 검증되지 않았거나 외부 코호트 검증이 없다",
+        "scope": "백테스트 · 선택 저널 전체",
+        "period": "2023-09-01–2024-08-30"
+      },
+      "judgmentInputHash": "sha256:3cf91d5df079c7a94f9bf52b2c0ad6735fd6f3a167956c5e1bd17ec9e06dc603",
+      "promptVersion": "6",
+      "judgmentSchemaVersion": "1",
+      "verdict": "structural",
+      "reason": "정렬 및 생체역학 연구는 주로 사체 모델이나 특정 실험실 환경을 이용한 기초 연구이거나, 단일 기관의 고도로 통제된 수술 프로토콜에 의존하는 경우가 많습니다. 따라서 다기관 등록 자료나 외부 코호트 검증이 적은 것은 연구 기회라기보다는 해당 분야의 실험적, 기술적 특성에 기인한 구조적 현상입니다.",
+      "fieldStandard": "정렬 정확도, outlier 비율, 합병증, 수술 효율",
+      "stability": {
+        "runs": 5,
+        "agree": 5,
+        "rate": 1.0,
+        "verdicts": {
+          "structural": 5
+        },
+        "failed": 0
+      },
+      "consensus": "agree",
+      "panel": [
+        {
+          "model": "gemini-3.6-flash",
+          "provider": "gemini",
+          "verdict": "structural"
+        }
+      ]
+    },
+    "형평성::prom_measurement": {
+      "model": "gemini-3.1-pro-preview",
+      "judgmentInput": {
+        "clusterId": "형평성",
+        "gapId": "prom_measurement",
+        "gapCategory": "outcome_measurement",
+        "gapSubtype": "",
+        "canonicalOutcome": {
+          "primary": [
+            "수술 이용률",
+            "의뢰율",
+            "대기시간",
+            "보험·지역 격차"
+          ],
+          "reviewed": true,
+          "subtypeNote": ""
+        },
+        "promRole": "contextual",
+        "title": "형평성 연구는 환자가 보고한 결과를 함께 재고 있는가?",
+        "rationale": "이 범위에서 형평성은 83편(5%)이고 전반기 대비 -24% 변화했습니다. 환자보고결과를 함께 잰 초록은 17편(20%)으로, 나머지 문헌의 46%보다 4.6표준편차 낮습니다(효과크기 0.55). 이 분야의 기준 결과변수는 수술 이용률, 의뢰율, 대기시간이며, PROM은 그와 나란히 볼 가치가 있는 축입니다.",
+        "clusterStatistics": {
+          "n": 83,
+          "observed": 17,
+          "ratio": 0.2048,
+          "baseline": 0.4581,
+          "z": 4.63,
+          "effectSize": 0.548,
+          "sufficiency": "충분"
+        },
+        "evidencePmids": [
+          "39178972",
+          "39214428"
+        ],
+        "representativeTitles": [
+          "Decreasing Incidence of Anterior Cruciate Ligament Tears and Increasing Utilization of Anterior Cruciate Ligament Reconstruction in the United States From 2010 to 2020.",
+          "Body Mass Index is Not an Appropriate Proxy for the Condition of Peri-Incisional Adiposity in Primary Total Joint Arthroplasty Patients.",
+          "Relationship Between Revision Rate, Osteoarthritis, and Obesity for ACL Reconstruction: A Nationwide Retrospective Cohort Study.",
+          "Decreasing Incidence of Partial Meniscectomy and Increasing Incidence of Meniscus Preservation Surgery From 2010 to 2020 in the United States.",
+          "Robotic Arm-Assisted Total Knee Arthroplasty Results in Smaller Femoral Components and Larger Tibial Baseplates Than the Manual Technique.",
+          "Predictive Modeling of Medical and Orthopaedic-Related 90-Day-Readmissions Following Primary Total Knee Arthroplasty.",
+          "Evaluation of Tibial Slope on Radiographs in Pediatric Patients With Tibial Spine Fractures: An Age- and Sex-Matched Study.",
+          "Costs and Timing of Surgery in the Management of Meniscal Tears.",
+          "In Vivo Intra-Articular Antibiotic Concentrations at 24 Hours After TKA Fall Below the Minimum Inhibitory Concentration for Most Bacteria: A Randomized Study of Commercially Available Bone Cement.",
+          "The Effect of Insurance Type on Length of Stay Following Total Knee Arthroplasty.",
+          "Regional Differences in Primary Total Knee Arthroplasty Utilization, Physician Reimbursement, and Patient Characteristics.",
+          "Lower Associated Risk of Revision With All-Polyethylene Tibial Components in Total Knee Arthroplasty: An Analysis of the American Joint Replacement Registry."
+        ],
+        "structuralPrior": "그 분야의 1차 결과가 애초에 다른 지표일 때. 예) 감염 연구의 1차 결과는 균 박멸이지 환자보고 점수가 아니다.",
+        "categoryNote": "결과를 재고 해석하는 방식이 비어 있다 (MCID·PASS·표준화 지표)",
+        "scope": "백테스트 · 선택 저널 전체",
+        "period": "2023-09-01–2024-08-30"
+      },
+      "judgmentInputHash": "sha256:63cd7cec5b79f6fd320e5fbabf154e543bb0765459be7fcc20b6fcdb79674742",
+      "promptVersion": "6",
+      "judgmentSchemaVersion": "1",
+      "verdict": "structural",
+      "reason": "형평성 연구는 주로 대규모 행정 데이터베이스를 활용하여 수술 접근성, 대기 시간, 보험 및 지역적 격차를 분석하는 데 초점을 맞춥니다. 이러한 데이터베이스에는 환자보고결과(PROM)가 포함되지 않은 경우가 많아 PROM 측정 비율이 낮은 것은 연구 방법론과 목적에 따른 구조적 특성입니다.",
+      "fieldStandard": "수술 이용률, 의뢰율, 대기시간, 보험·지역 격차",
+      "stability": {
+        "runs": 5,
+        "agree": 5,
+        "rate": 1.0,
+        "verdicts": {
+          "structural": 5
+        },
+        "failed": 0
+      },
+      "consensus": "agree",
+      "panel": [
+        {
+          "model": "gemini-3.6-flash",
+          "provider": "gemini",
+          "verdict": "structural"
+        }
+      ]
+    },
+    "감염::prospective_design": {
+      "model": "gemini-3.1-pro-preview",
+      "judgmentInput": {
+        "clusterId": "감염",
+        "gapId": "prospective_design",
+        "gapCategory": "methodology",
+        "gapSubtype": "",
+        "canonicalOutcome": {
+          "primary": [
+            "감염 박멸",
+            "재감염률",
+            "임플란트 생존"
+          ],
+          "reviewed": true,
+          "subtypeNote": ""
+        },
+        "promRole": "secondary",
+        "title": "감염의 후향적 결론을 전향적으로 재현할 수 있는가?",
+        "rationale": "감염 169편 중 전향적 연구·무작위시험은 21편(12%)으로, 나머지 문헌의 23%보다 3.2표준편차 낮습니다. 대부분 후향 자료에 기대고 있어 적응증 선택 편향을 배제하지 못합니다. 단일 기관 전향 등록만으로도 근거 수준을 한 단계 올릴 수 있는 구간입니다.",
+        "clusterStatistics": {
+          "n": 169,
+          "observed": 21,
+          "ratio": 0.1243,
+          "baseline": 0.2288,
+          "z": 3.23,
+          "effectSize": 0.277,
+          "sufficiency": "제한적"
+        },
+        "evidencePmids": [
+          "39178972",
+          "39178974"
+        ],
+        "representativeTitles": [
+          "Tranexamic Acid Led to Improved Safety of Total Knee Arthroplasty in Jehovah's Witness Patients: A Multicentered Matched Study.",
+          "Body Mass Index is Not an Appropriate Proxy for the Condition of Peri-Incisional Adiposity in Primary Total Joint Arthroplasty Patients.",
+          "Above-Knee Amputation Following Chronically Infected Total Knee Arthroplasty: Patient-Reported Satisfaction and Functional Outcomes.",
+          "No Difference in 10-year Clinical or Radiographic Outcomes Between Kinematic and Mechanical Alignment in TKA: A Randomized Trial.",
+          "High Rates of Early Septic Failure, but Low Rates of Aseptic Loosening After Revision Total Knee Arthroplasty With Contemporary Rotating-Hinge Prostheses.",
+          "The Effect of Periprosthetic Fractures Following Total Hip and Knee Arthroplasty on Long-Term Functional Outcomes and Quality of Life.",
+          "Presoaking hamstring autograft with vancomycin does not jeopardize its biomechanical properties, including graft elongation, after cyclic loading.",
+          "Survivorship of Modern Cementless Total Knee Arthroplasty: Analysis From the Canadian Joint Replacement Registry.",
+          "Total knee arthroplasty using a cemented single-radius, condylar-stabilized design performed without posterior cruciate ligament sacrifice.",
+          "Comparison of Trends and Complications of Unicompartmental Knee Arthroplasty Versus Periarticular Knee Osteotomy Among ABOS Part II Oral Examination Candidates.",
+          "Use of Hinged Implants for Multi-Stage Revision Knee Arthroplasty for Severe Periprosthetic Joint Infection: Remission Rate and Outcomes After a Minimum Follow-Up of Five Years.",
+          "In Vivo Intra-Articular Antibiotic Concentrations at 24 Hours After TKA Fall Below the Minimum Inhibitory Concentration for Most Bacteria: A Randomized Study of Commercially Available Bone Cement."
+        ],
+        "structuralPrior": "무작위배정이 윤리적·현실적으로 불가능할 때. 예) 발생률이 1~2%인 희귀 합병증, 응급 수술, 환자가 배정을 거부하는 술기 선택.",
+        "categoryNote": "후향·단일기관·소표본에 머물러 설계 자체가 결론을 제한한다",
+        "scope": "백테스트 · 선택 저널 전체",
+        "period": "2023-09-01–2024-08-30"
+      },
+      "judgmentInputHash": "sha256:b7485dc23accf1075bdc6fb7c444aceeeeb3985d24dcee2d2c900fa554f8dc70",
+      "promptVersion": "6",
+      "judgmentSchemaVersion": "1",
+      "verdict": "structural",
+      "reason": "인공관절 주위 감염은 발생률이 1~2% 수준으로 매우 낮고 응급 수술을 요하는 경우가 많아 전향적 연구나 무작위 배정 임상시험을 수행하기가 현실적, 윤리적으로 매우 어렵습니다. 따라서 후향적 연구가 주를 이루는 것은 연구 기회의 공백이라기보다는 해당 질환의 구조적 특성에 기인합니다.",
+      "fieldStandard": "감염 박멸, 재감염률, 임플란트 생존",
+      "stability": {
+        "runs": 5,
+        "agree": 5,
+        "rate": 1.0,
+        "verdicts": {
+          "structural": 5
+        },
+        "failed": 0
+      },
+      "consensus": "agree",
+      "panel": [
+        {
+          "model": "gemini-3.6-flash",
+          "provider": "gemini",
+          "verdict": "structural"
+        }
+      ]
+    },
+    "스포츠 복귀::prom_interpretation": {
+      "model": "gemini-3.1-pro-preview",
+      "judgmentInput": {
+        "clusterId": "스포츠 복귀",
+        "gapId": "prom_interpretation",
+        "gapCategory": "outcome_measurement",
+        "gapSubtype": "",
+        "canonicalOutcome": {
+          "primary": [
+            "복귀율",
+            "복귀까지 시간",
+            "이전 수준 복귀율",
+            "활동 수준",
+            "복귀 유지",
+            "재손상"
+          ],
+          "reviewed": true,
+          "subtypeNote": ""
+        },
+        "promRole": "secondary",
+        "title": "스포츠 복귀의 PROM 변화는 환자에게 의미 있는 크기인가?",
+        "rationale": "스포츠 복귀 105편 중 PROM을 보고한 초록은 57편으로 충분합니다. 그런데 그중 MCID·PASS·SCB·responder로 해석까지 한 초록은 5편(9%)뿐이고, 다른 분야 PROM 논문의 23%보다 2.6표준편차 낮습니다. 점수가 좋아졌다는 것과 환자가 좋아졌다고 느낀다는 것은 다른 진술입니다.",
+        "clusterStatistics": {
+          "n": 57,
+          "observed": 5,
+          "ratio": 0.0877,
+          "baseline": 0.2327,
+          "z": 2.59,
+          "effectSize": 0.405,
+          "sufficiency": "제한적"
+        },
+        "evidencePmids": [
+          "39140729",
+          "39157024"
+        ],
+        "representativeTitles": [
+          "Revision Anterior Cruciate Ligament Reconstruction in Pediatric and Adolescent Patients Yields Low Rates of Graft Failure and Good Functional Scores, but Low Rates of Return to Sport: A Systematic Review.",
+          "Neurocognitive demands reduce jump distance and coordination variability of the injured leg in athletes after anterior cruciate ligament reconstruction.",
+          "After 40 days intra-articular injury, risk profile increases linearly with time to surgery in adolescent patients undergoing primary anterior cruciate ligament reconstruction.",
+          "Lateral extra-articular tenodesis at primary ACL reconstruction increases career length in professional rugby players.",
+          "The 25 Most Cited Articles in Pediatric Orthopaedic Sports Medicine.",
+          "Effect of Different Screw Materials on ACL Reconstruction With the Tape Locking Screw Technique: A Retrospective Study From the FAST Cohort.",
+          "Impaired Symmetry in Single-Leg Vertical Jump and Drop Jump Performance 7 Months After ACL Reconstruction.",
+          "Prevalence of Concomitant Injuries by Sport in Pediatric Patients With ACL Rupture.",
+          "Fresh Osteochondral Allograft Transplantation of the Capitellum for the Treatment of Osteochondritis Dissecans.",
+          "Patient Preferences for Graft Selection in Anterior Cruciate Ligament Reconstruction.",
+          "Patients' joint perception after anterior cruciate ligament reconstruction as a reliable patient-reported outcome measure.",
+          "Hop distance to body height ratio outperforms limb symmetry index in predicting second anterior cruciate ligament injury."
+        ],
+        "structuralPrior": "그 분야의 1차 결과가 애초에 다른 지표일 때. 예) 감염 연구의 1차 결과는 균 박멸이지 환자보고 점수가 아니다.",
+        "categoryNote": "결과를 재고 해석하는 방식이 비어 있다 (MCID·PASS·표준화 지표)",
+        "scope": "백테스트 · 선택 저널 전체",
+        "period": "2023-09-01–2024-08-30"
+      },
+      "judgmentInputHash": "sha256:95dc8c1dcda58fc549285e4957481c864543770c030fd3d2e5d7910623ae2668",
+      "promptVersion": "6",
+      "judgmentSchemaVersion": "1",
+      "verdict": "structural",
+      "reason": "스포츠 복귀 연구의 핵심 1차 결과는 실제 스포츠 복귀 여부, 복귀까지의 시간, 이전 기량 회복 등 명확한 임상적 사건입니다. 환자보고지표(PROM)가 보조적으로 수집되더라도, 성공적인 스포츠 복귀 자체가 이미 임상적으로 가장 의미 있는 결과이자 궁극적인 목표로 간주됩니다. 따라서 PROM 점수 변화에 대해 MCID나 PASS 같은 별도의 통계적 해석 기준을 덜 적용하는 것은 이 분야의 자연스러운 구조적 특성입니다.",
+      "fieldStandard": "복귀율, 복귀까지 시간, 이전 수준 복귀율, 활동 수준, 복귀 유지, 재손상",
+      "stability": {
+        "runs": 5,
+        "agree": 5,
+        "rate": 1.0,
+        "verdicts": {
+          "structural": 5
+        },
+        "failed": 0
+      },
+      "consensus": "agree",
+      "panel": [
+        {
+          "model": "gemini-3.6-flash",
+          "provider": "gemini",
+          "verdict": "structural"
+        }
+      ]
+    },
+    "환자요인::prospective_design": {
+      "model": "gemini-3.1-pro-preview",
+      "judgmentInput": {
+        "clusterId": "환자요인",
+        "gapId": "prospective_design",
+        "gapCategory": "methodology",
+        "gapSubtype": "",
+        "canonicalOutcome": {
+          "primary": [
+            "위험도",
+            "회복",
+            "합병증",
+            "PROM"
+          ],
+          "reviewed": true,
+          "subtypeNote": ""
+        },
+        "promRole": "contextual",
+        "title": "환자요인의 후향적 결론을 전향적으로 재현할 수 있는가?",
+        "rationale": "환자요인 241편 중 전향적 연구·무작위시험은 35편(15%)으로, 나머지 문헌의 23%보다 3.2표준편차 낮습니다. 대부분 후향 자료에 기대고 있어 적응증 선택 편향을 배제하지 못합니다. 단일 기관 전향 등록만으로도 근거 수준을 한 단계 올릴 수 있는 구간입니다.",
+        "clusterStatistics": {
+          "n": 241,
+          "observed": 35,
+          "ratio": 0.1452,
+          "baseline": 0.2312,
+          "z": 3.17,
+          "effectSize": 0.221,
+          "sufficiency": "제한적"
+        },
+        "evidencePmids": [
+          "39214428",
+          "39221041"
+        ],
+        "representativeTitles": [
+          "Decreasing Incidence of Anterior Cruciate Ligament Tears and Increasing Utilization of Anterior Cruciate Ligament Reconstruction in the United States From 2010 to 2020.",
+          "Comparison of Patient-Reported Outcomes for Immediate Unrestricted Weightbearing Versus Restricted Rehabilitation Protocols After Osteochondral Allograft Transplantation to the Distal Femur.",
+          "More negative sagittal tibial tuberosity-trochlear groove distances are correlated with larger patellofemoral chondral lesion size.",
+          "Lower cell number, lateral defect location and milder grade are associated with improved autologous chondrocyte implantation outcome.",
+          "After 40 days intra-articular injury, risk profile increases linearly with time to surgery in adolescent patients undergoing primary anterior cruciate ligament reconstruction.",
+          "Independent Risk Factors Associated With Venous Thromboembolism After Knee Arthroscopy: A Retrospective Study of 222 Patients.",
+          "Body Mass Index is Not an Appropriate Proxy for the Condition of Peri-Incisional Adiposity in Primary Total Joint Arthroplasty Patients.",
+          "Relationship Between Revision Rate, Osteoarthritis, and Obesity for ACL Reconstruction: A Nationwide Retrospective Cohort Study.",
+          "Prognostic Factors on Preoperative MRI for Patient-Reported Outcomes After Posterior Medial Meniscus Root Repair.",
+          "Medial Meniscectomy at the Time of ACL Reconstruction Is Associated With Postoperative Anterior Tibial Translation: A Retrospective Analysis.",
+          "Prevalence of Concomitant Injuries by Sport in Pediatric Patients With ACL Rupture.",
+          "The Effect of Periprosthetic Fractures Following Total Hip and Knee Arthroplasty on Long-Term Functional Outcomes and Quality of Life."
+        ],
+        "structuralPrior": "무작위배정이 윤리적·현실적으로 불가능할 때. 예) 발생률이 1~2%인 희귀 합병증, 응급 수술, 환자가 배정을 거부하는 술기 선택.",
+        "categoryNote": "후향·단일기관·소표본에 머물러 설계 자체가 결론을 제한한다",
+        "scope": "백테스트 · 선택 저널 전체",
+        "period": "2023-09-01–2024-08-30"
+      },
+      "judgmentInputHash": "sha256:0277ff6317166a1992a43f3ffe6f343873b28c87f83f3e3e4823ed6a47c84858",
+      "promptVersion": "6",
+      "judgmentSchemaVersion": "1",
+      "verdict": "structural",
+      "reason": "환자요인(BMI, 해부학적 구조, 동반 손상 등)은 인위적인 무작위 배정이 불가능한 관찰 변수이므로 전향적 무작위 대조시험이 적은 것은 분야의 구조적 특성입니다. 또한 이러한 요인이 희귀 합병증이나 장기 결과에 미치는 영향을 규명하기 위해서는 대규모 표본이 필수적이므로, 국가 데이터베이스 등을 활용한 대규모 후향적 코호트 연구가 오히려 더 적합하고 현실적인 방법론입니다.",
+      "fieldStandard": "위험도, 회복, 합병증, PROM",
+      "stability": {
+        "runs": 5,
+        "agree": 5,
+        "rate": 1.0,
+        "verdicts": {
+          "structural": 5
+        },
+        "failed": 0
+      },
+      "consensus": "agree",
+      "panel": [
+        {
+          "model": "gemini-3.6-flash",
+          "provider": "gemini",
+          "verdict": "structural"
+        }
+      ]
+    },
+    "AI·예측::direct_comparison": {
+      "model": "gemini-3.1-pro-preview",
+      "judgmentInput": {
+        "clusterId": "AI·예측",
+        "gapId": "direct_comparison",
+        "gapCategory": "comparator",
+        "gapSubtype": "",
+        "canonicalOutcome": {
+          "primary": [
+            "discrimination (AUC)",
+            "calibration",
+            "external validation",
+            "clinical utility"
+          ],
+          "reviewed": true,
+          "subtypeNote": ""
+        },
+        "promRole": "contextual",
+        "title": "AI·예측에서 선택지끼리의 직접 비교가 있는가?",
+        "rationale": "AI·예측 44편 중 두 선택지를 직접 비교한 초록(무작위·성향점수 매칭·대조군 설정)은 17편(39%)으로, 나머지 문헌의 61%보다 3.0표준편차 낮습니다. 단일군 보고가 쌓여도 \"무엇을 골라야 하는가\"에는 답하지 못합니다.",
+        "clusterStatistics": {
+          "n": 44,
+          "observed": 17,
+          "ratio": 0.3864,
+          "baseline": 0.6079,
+          "z": 3.01,
+          "effectSize": 0.447,
+          "sufficiency": "제한적"
+        },
+        "evidencePmids": [
+          "39165332",
+          "39171406"
+        ],
+        "representativeTitles": [
+          "Good 5-year results and a low redislocation rate using an à la carte treatment algorithm for patellofemoral instability in patients with severe trochlea dysplasia.",
+          "Ensemble Algorithm for Risk Prediction of Clinical Failure After Anterior Cruciate Ligament Reconstruction.",
+          "Machine-Learning Models Reliably Predict Clinical Outcomes in Medial Patellofemoral Ligament Reconstruction.",
+          "Editorial Commentary: Both Osteochondral Allograft Transplantation and Autologous Chondrocyte Implantation Are Valuable Treatment Options for Patellofemoral Joint Cartilage Defects.",
+          "Patient-Specific Distal Femoral Guides Optimize Cartilage Topography Matching in Osteochondral Allograft Transplantations.",
+          "Application of a machine learning and optimization method to predict patellofemoral instability risk factors in children and adolescents.",
+          "Achieving high accuracy in meniscus tear detection using advanced deep learning models with a relatively small data set.",
+          "Editorial Commentary: Surgical Treatment Algorithm for Patellofemoral Recurrent Instability.",
+          "Kinematical alignment better restores native patellar tracking pattern than mechanical alignment.",
+          "The Large Language Model ChatGPT-4 Exhibits Excellent Triage Capabilities and Diagnostic Performance for Patients Presenting With Various Causes of Knee Pain.",
+          "Inverse kinematic total knee arthroplasty using conventional instrumentation restores constitutional coronal alignment.",
+          "Surgical factors play a critical role in predicting functional outcomes using machine learning in robotic-assisted total knee arthroplasty."
+        ],
+        "structuralPrior": "연구 단계상 비교군이 아직 없을 때. 예) 단일군 feasibility·초기 안전성 연구, 표준 대안이 없는 술기.",
+        "categoryNote": "임상에서 실제로 갈리는 선택지끼리의 직접 비교가 없다",
+        "scope": "백테스트 · 선택 저널 전체",
+        "period": "2023-09-01–2024-08-30"
+      },
+      "judgmentInputHash": "sha256:e9619868ac0e2dbe5cc66763da2008776a8403ba841e5fd36b8d40032d9919c9",
+      "promptVersion": "6",
+      "judgmentSchemaVersion": "1",
+      "verdict": "structural",
+      "reason": "AI 및 예측 모델 연구는 주로 새로운 모델의 개발과 성능 검증에 초점을 맞추기 때문에, 서로 다른 임상적 치료 선택지를 직접 비교하는 연구 설계가 적은 것은 해당 분야의 방법론적 특성상 자연스러운 현상입니다. 따라서 이는 연구 공백이라기보다는 연구 단계와 목적에 따른 구조적 특성입니다.",
+      "fieldStandard": "discrimination (AUC), calibration, external validation, clinical utility",
+      "stability": {
+        "runs": 5,
+        "agree": 5,
+        "rate": 1.0,
+        "verdicts": {
+          "structural": 5
+        },
+        "failed": 0
+      },
+      "consensus": "agree",
+      "panel": [
+        {
+          "model": "gemini-3.6-flash",
+          "provider": "gemini",
+          "verdict": "structural"
+        }
+      ]
+    },
+    "비용·보건정책::longterm_followup": {
+      "model": "gemini-3.1-pro-preview",
+      "judgmentInput": {
+        "clusterId": "비용·보건정책",
+        "gapId": "longterm_followup",
+        "gapCategory": "longterm_durability",
+        "gapSubtype": "cumulative_cost_resource_use",
+        "canonicalOutcome": {
+          "primary": [
+            "직접·간접비용",
+            "의료자원 이용",
+            "QALY",
+            "ICER",
+            "접근성·이용률"
+          ],
+          "reviewed": true,
+          "subtypeNote": ""
+        },
+        "promRole": "contextual",
+        "title": "비용·보건정책의 초기 결과는 5년 뒤에도 유지되는가?",
+        "rationale": "비용·보건정책 66편 중 장기 추적·생존분석을 보고한 초록은 4편(6%)으로, 나머지 문헌의 20%보다 2.9표준편차 낮습니다. 단기에 좋다는 것이 5년 뒤에도 좋다는 뜻은 아닙니다. 이 분야에서 장기적으로 물을 수 있는 지표는 누적 의료비·자원 사용·QALY·비용효과(ICER)입니다.",
+        "clusterStatistics": {
+          "n": 66,
+          "observed": 4,
+          "ratio": 0.0606,
+          "baseline": 0.2027,
+          "z": 2.87,
+          "effectSize": 0.437,
+          "sufficiency": "제한적"
+        },
+        "evidencePmids": [
+          "39121986",
+          "39207363"
+        ],
+        "representativeTitles": [
+          "The Development and Execution of An Orthopaedic Sports Medicine Fellowship Surgical Skills Assessment.",
+          "Predictive Modeling of Medical and Orthopaedic-Related 90-Day-Readmissions Following Primary Total Knee Arthroplasty.",
+          "Halving of the meniscectomy rate and their costs in Italy: A 15-years period analysis.",
+          "Costs and Timing of Surgery in the Management of Meniscal Tears.",
+          "Dutch multidisciplinary guideline on anterior knee pain: Patellofemoral pain and patellar tendinopathy.",
+          "Trends and epidemiology in robotic-assisted total knee arthroplasty: Reduced complications and shorter hospital stays.",
+          "One-day surgery is safe and effective in unicompartmental knee arthroplasty: A prospective comparative study at 1 year of follow-up.",
+          "Identifying Critical Evidence Gaps in Wound Closure and Incision Management After Total Knee Arthroplasty: Delphi Panel Insights.",
+          "Robotic-assisted total knee arthroplasty reduces postoperative complications and length of stay without increased cost compared to navigation-guided techniques: A national analysis.",
+          "Similar QALY gain in primary and revision knee arthroplasty: A cost analysis and Markov model.",
+          "Lower Associated Risk of Revision With All-Polyethylene Tibial Components in Total Knee Arthroplasty: An Analysis of the American Joint Replacement Registry.",
+          "Total Knee Arthroplasty With Robotic and Augmented Reality Guidance: A Hierarchical Task Analysis."
+        ],
+        "structuralPrior": "그 술기·기술이 도입된 지 얼마 안 돼 장기 자료가 물리적으로 존재할 수 없을 때. 예) 최근 5년 내 상용화된 로봇 플랫폼의 10년 생존율.",
+        "categoryNote": "단기 결과만 있고 장기 생존·재발 자료가 없다",
+        "scope": "백테스트 · 선택 저널 전체",
+        "period": "2023-09-01–2024-08-30"
+      },
+      "judgmentInputHash": "sha256:c165081d7935f2cd99a17e9c2a3f3c95d587b668237db16301c277364e6c0546",
+      "promptVersion": "6",
+      "judgmentSchemaVersion": "1",
+      "verdict": "structural",
+      "reason": "비용 및 보건정책 연구는 주로 단기 에피소드 중심의 의료자원 이용을 분석하거나 마르코프 모델 등을 통해 장기 비용효과를 추정합니다. 전통적인 임상 코호트 기반의 장기 추적이나 생존 분석 비율이 낮은 것은 이러한 연구 방법론과 보건의료 데이터의 구조적 특성을 반영한 정상적인 현상입니다.",
+      "fieldStandard": "직접·간접비용, 의료자원 이용, QALY, ICER, 접근성·이용률",
+      "stability": {
+        "runs": 5,
+        "agree": 3,
+        "rate": 0.6,
+        "verdicts": {
+          "structural": 3,
+          "opportunity": 2
+        },
+        "failed": 0
+      },
+      "consensus": "agree",
+      "panel": [
+        {
+          "model": "gemini-3.6-flash",
+          "provider": "gemini",
+          "verdict": "structural"
+        }
+      ]
+    },
+    "외래·회복::longterm_followup": {
+      "model": "gemini-3.1-pro-preview",
+      "judgmentInput": {
+        "clusterId": "외래·회복",
+        "gapId": "longterm_followup",
+        "gapCategory": "longterm_durability",
+        "gapSubtype": "cumulative_risk",
+        "canonicalOutcome": {
+          "primary": [
+            "당일 퇴원 성공·실패",
+            "재원기간",
+            "응급실 방문",
+            "30/90일 재입원·합병증",
+            "기능회복 시간"
+          ],
+          "reviewed": true,
+          "subtypeNote": ""
+        },
+        "promRole": "secondary",
+        "title": "외래·회복의 초기 결과는 5년 뒤에도 유지되는가?",
+        "rationale": "외래·회복 126편 중 장기 추적·생존분석을 보고한 초록은 13편(10%)으로, 나머지 문헌의 21%보다 2.8표준편차 낮습니다. 단기에 좋다는 것이 2–5년 뒤에도 좋다는 뜻은 아닙니다. 이 분야에서 장기적으로 물을 수 있는 지표는 누적 재입원·재수술·합병증·PROM 개선의 장기 유지(회복 궤적)입니다.",
+        "clusterStatistics": {
+          "n": 126,
+          "observed": 13,
+          "ratio": 0.1032,
+          "baseline": 0.2056,
+          "z": 2.84,
+          "effectSize": 0.287,
+          "sufficiency": "제한적"
+        },
+        "evidencePmids": [
+          "39189134",
+          "39221041"
+        ],
+        "representativeTitles": [
+          "Can Repetition-based Training in a High-fidelity Model Enhance Critical Trauma Surgical Skills Among Trainees and Attending Surgeons Equally?",
+          "Comparison of Patient-Reported Outcomes for Immediate Unrestricted Weightbearing Versus Restricted Rehabilitation Protocols After Osteochondral Allograft Transplantation to the Distal Femur.",
+          "Combining a digital health application with standard care significantly enhances rehabilitation outcomes for ACL surgery patients.",
+          "Ensemble Algorithm for Risk Prediction of Clinical Failure After Anterior Cruciate Ligament Reconstruction.",
+          "Impaired Symmetry in Single-Leg Vertical Jump and Drop Jump Performance 7 Months After ACL Reconstruction.",
+          "Editorial Commentary: Failure to Regain Full Hyperextension After Anterior Cruciate Ligament Reconstruction Is Associated With Inferior Patient Satisfaction and Lower Functional Outcomes Scores, But the Impact on Graft Rupture Rates and Persistent Instability Is Unclear.",
+          "Females demonstrate lower levels of activity, psychological readiness and strength symmetry after anterior cruciate ligament reconstruction than males, and also recovery of quadriceps strength and hop symmetry is delayed in females undergoing reconstruction with a quadriceps tendon autograft.",
+          "Predictive Modeling of Medical and Orthopaedic-Related 90-Day-Readmissions Following Primary Total Knee Arthroplasty.",
+          "Halving of the meniscectomy rate and their costs in Italy: A 15-years period analysis.",
+          "Same-Day Discharge Total Knee Arthroplasty: Hospital Demonstrates Similar Outcomes to Ambulatory Surgery Center in a More Complex Patient Population.",
+          "Costs and Timing of Surgery in the Management of Meniscal Tears.",
+          "Which patients need anterior cruciate ligament reconstruction after initial treatment with rehabilitation? A scoping review."
+        ],
+        "structuralPrior": "그 술기·기술이 도입된 지 얼마 안 돼 장기 자료가 물리적으로 존재할 수 없을 때. 예) 최근 5년 내 상용화된 로봇 플랫폼의 10년 생존율.",
+        "categoryNote": "단기 결과만 있고 장기 생존·재발 자료가 없다",
+        "scope": "백테스트 · 선택 저널 전체",
+        "period": "2023-09-01–2024-08-30"
+      },
+      "judgmentInputHash": "sha256:6c9f850aba7dffa341c5c97de05a6051dcd94cc0d9731370ea2d01ea2b286e1c",
+      "promptVersion": "6",
+      "judgmentSchemaVersion": "1",
+      "verdict": "structural",
+      "reason": "외래 수술 및 초기 회복 프로토콜의 주된 임상적 관심사는 당일 퇴원의 안전성, 단기 합병증 및 조기 기능 회복 여부입니다. 수술 후 5년 이상의 장기 생존율이나 누적 재수술률은 퇴원 방식이나 초기 회복 과정보다는 수술 술기 및 임플란트 자체의 특성에 의해 주로 결정되므로, 이 클러스터에서 장기 추적 지표가 적게 보고되는 것은 해당 연구 분야의 자연스러운 구조적 특성입니다.",
+      "fieldStandard": "당일 퇴원 성공·실패, 재원기간, 응급실 방문, 30/90일 재입원·합병증, 기능회복 시간",
+      "stability": {
+        "runs": 5,
+        "agree": 5,
+        "rate": 1.0,
+        "verdicts": {
+          "structural": 5
+        },
+        "failed": 0
+      },
+      "consensus": "agree",
+      "panel": [
+        {
+          "model": "gemini-3.6-flash",
+          "provider": "gemini",
+          "verdict": "structural"
+        }
+      ]
+    },
+    "AI·예측::longterm_followup": {
+      "model": "gemini-3.1-pro-preview",
+      "judgmentInput": {
+        "clusterId": "AI·예측",
+        "gapId": "longterm_followup",
+        "gapCategory": "longterm_durability",
+        "gapSubtype": "prediction_horizon",
+        "canonicalOutcome": {
+          "primary": [
+            "discrimination (AUC)",
+            "calibration",
+            "external validation",
+            "clinical utility"
+          ],
+          "reviewed": true,
+          "subtypeNote": ""
+        },
+        "promRole": "contextual",
+        "title": "AI·예측의 초기 결과는 5년 뒤에도 유지되는가?",
+        "rationale": "AI·예측 44편 중 장기 추적·생존분석을 보고한 초록은 3편(7%)으로, 나머지 문헌의 20%보다 2.2표준편차 낮습니다. 단기에 좋다는 것이 모델의 예측기간(예: 5년) 뒤에도 좋다는 뜻은 아닙니다. 이 분야에서 장기적으로 물을 수 있는 지표는 5년 예측모델의 5년 시점 calibration·5년 시점 discrimination입니다.",
+        "clusterStatistics": {
+          "n": 44,
+          "observed": 3,
+          "ratio": 0.0682,
+          "baseline": 0.1998,
+          "z": 2.18,
+          "effectSize": 0.399,
+          "sufficiency": "제한적"
+        },
+        "evidencePmids": [
+          "39165332",
+          "39171406"
+        ],
+        "representativeTitles": [
+          "Good 5-year results and a low redislocation rate using an à la carte treatment algorithm for patellofemoral instability in patients with severe trochlea dysplasia.",
+          "Ensemble Algorithm for Risk Prediction of Clinical Failure After Anterior Cruciate Ligament Reconstruction.",
+          "Machine-Learning Models Reliably Predict Clinical Outcomes in Medial Patellofemoral Ligament Reconstruction.",
+          "Editorial Commentary: Both Osteochondral Allograft Transplantation and Autologous Chondrocyte Implantation Are Valuable Treatment Options for Patellofemoral Joint Cartilage Defects.",
+          "Patient-Specific Distal Femoral Guides Optimize Cartilage Topography Matching in Osteochondral Allograft Transplantations.",
+          "Application of a machine learning and optimization method to predict patellofemoral instability risk factors in children and adolescents.",
+          "Achieving high accuracy in meniscus tear detection using advanced deep learning models with a relatively small data set.",
+          "Editorial Commentary: Surgical Treatment Algorithm for Patellofemoral Recurrent Instability.",
+          "Kinematical alignment better restores native patellar tracking pattern than mechanical alignment.",
+          "The Large Language Model ChatGPT-4 Exhibits Excellent Triage Capabilities and Diagnostic Performance for Patients Presenting With Various Causes of Knee Pain.",
+          "Inverse kinematic total knee arthroplasty using conventional instrumentation restores constitutional coronal alignment.",
+          "Surgical factors play a critical role in predicting functional outcomes using machine learning in robotic-assisted total knee arthroplasty."
+        ],
+        "structuralPrior": "그 술기·기술이 도입된 지 얼마 안 돼 장기 자료가 물리적으로 존재할 수 없을 때. 예) 최근 5년 내 상용화된 로봇 플랫폼의 10년 생존율.",
+        "categoryNote": "단기 결과만 있고 장기 생존·재발 자료가 없다",
+        "scope": "백테스트 · 선택 저널 전체",
+        "period": "2023-09-01–2024-08-30"
+      },
+      "judgmentInputHash": "sha256:36543a87dfbbdacc52c6a039bb9755f8f6d06db7926d72eb71694d32b41b9f3d",
+      "promptVersion": "6",
+      "judgmentSchemaVersion": "1",
+      "verdict": "structural",
+      "reason": "AI 및 머신러닝 모델이 정형외과 임상에 본격적으로 도입된 지 비교적 최근이므로, 전향적으로 5년 이상의 장기 예측 성능을 검증한 데이터가 물리적으로 존재하기 어렵습니다. 현재 연구의 주된 초점이 즉각적인 영상 진단이나 단기 임상 결과 예측에 맞춰져 있는 연구 도입기의 구조적 특성으로 판단됩니다.",
+      "fieldStandard": "discrimination (AUC), calibration, external validation, clinical utility",
+      "stability": {
+        "runs": 5,
+        "agree": 5,
+        "rate": 1.0,
+        "verdicts": {
+          "structural": 5
+        },
+        "failed": 0
+      },
+      "consensus": "agree",
+      "panel": [
+        {
+          "model": "gemini-3.6-flash",
+          "provider": "gemini",
+          "verdict": "structural"
+        }
+      ]
+    }
+  }
+}

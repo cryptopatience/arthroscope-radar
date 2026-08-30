@@ -20,7 +20,6 @@ from radar.analysis import FAMILIES, FAMILY_ORDER, JOURNAL_ORDER, JOURNALS, Anal
 from radar.cache import cache_key, get as cache_get, load as cache_load, put as cache_put
 from radar.gemini import ENHANCE_MIN, enhance_idea, pmids_for_idea, resolve_model
 from radar.judge import VERDICT_LABEL, evidence_summary
-from radar.backtest import BACKTEST_MIN_PAPERS, latest_report as latest_backtest
 from radar.selection import PROM_SUBTYPES, gap_category, select
 from radar.vocabulary import GAP_CATEGORIES, LONGTERM_SUBTYPES
 from radar.ncbi import NcbiCredentials
@@ -28,6 +27,8 @@ from radar.trials import (ACTIVE_STATUSES, FAMILY_LABEL as TRIAL_FAMILY_LABEL, S
                           load as load_trials, summarize as summarize_trials, trial_url)
 
 TREND_ROWS = 9          # 편수 순 표에서 먼저 보여주는 행 수. 그 아래 상승 신호는 따로 덧붙인다.
+# 신호 표의 고정 높이(픽셀). 대략 여섯 행 + 머리글이 보이고 나머지는 스크롤된다.
+TREND_TABLE_HEIGHT = 248
 ARTICLE_PAGE = 8
 SNAPSHOT_PATH = Path("data/daily.json")
 RUN_LOG_PATH = Path("data/run_log.json")     # 일일 작업이 실행마다 한 줄씩 남기는 기록
@@ -148,8 +149,6 @@ def init_state():
         # 임상시험 레이더는 아이디어 파이프라인과 독립이다. 상태도 따로 둔다.
         "show_trials": False, "trials_family": "전체", "trials_status": "활성만",
         "trials_knee_only": True,
-        # 백테스트는 앱에서 돌리지 않는다 — 결과 파일만 읽어 보여준다.
-        "show_backtest": False,
         "saved_ideas": load_saved(),
     }
     for key, value in defaults.items():
@@ -565,7 +564,6 @@ def render_trials_menu():
         st.caption("아직 수집 전입니다. 눌러 보시면 만드는 방법이 나옵니다.")
         if st.button("임상시험 보기 →", key="trials_toggle_empty", width="stretch"):
             st.session_state.show_trials = True
-            st.session_state.show_backtest = False
             st.rerun()
         return
     summary = summarize_trials(payload)
@@ -583,32 +581,29 @@ def render_trials_menu():
     label = "← 분석 화면으로" if st.session_state.show_trials else "임상시험 보기 →"
     if st.button(label, key="trials_toggle", width="stretch"):
         st.session_state.show_trials = not st.session_state.show_trials
-        st.session_state.show_backtest = False     # 두 화면은 동시에 열지 않는다
         st.rerun()
 
 
-@st.cache_data(ttl=300, show_spinner=False)
-def _backtest_report():
-    return latest_backtest()
+def render_saved_menu():
+    """사이드바 저장 목록. ★ 저장을 누른 카드를 여기서 다시 찾는다.
 
-
-def render_backtest_menu():
-    """사이드바 백테스트 메뉴. 실행은 명령줄에서만 한다 — 3년치 수집이라 화면이 멈춘다."""
-    st.markdown("### 백테스트")
-    report = _backtest_report()
-    # 결과가 없어도 버튼은 그린다. 안 그리면 메뉴가 죽은 것처럼 보이고, 어떻게
-    # 만드는지 안내할 자리도 없어진다.
-    if report:
-        meta, summary = report.get("meta") or {}, report.get("summary") or {}
-        st.caption(f"{meta.get('pastFrom', '')} ~ {meta.get('pastTo', '')} 후보로 만들어 "
-                   f"{meta.get('futureTo', '')}까지 채점 · 후보 {meta.get('ideas', 0)}개 중 "
-                   f"{summary.get('scored', 0)}개 채점")
-    else:
-        st.caption("아직 실행 전입니다. 눌러 보시면 만드는 방법이 나옵니다.")
-    label = "← 분석 화면으로" if st.session_state.show_backtest else "백테스트 보기 →"
-    if st.button(label, key="backtest_toggle", width="stretch"):
-        st.session_state.show_backtest = not st.session_state.show_backtest
-        st.session_state.show_trials = False       # 두 화면은 동시에 열지 않는다
+    이전에는 본문 03번 옆 버튼 하나뿐이었고, 저장한 것이 없으면 그 버튼도 사라져서
+    "저장한 게 어디 갔지"가 됐다. 메뉴는 개수와 무관하게 항상 자리를 지킨다.
+    """
+    saved = st.session_state.saved_ideas
+    st.markdown("### 저장한 아이디어")
+    if not saved:
+        st.caption("아직 없습니다. 아이디어 카드의 **☆ 저장**을 누르면 여기에 쌓입니다.")
+        return
+    scopes = {}
+    for i in saved:
+        scopes[i.get("scope", "범위 미상")] = scopes.get(i.get("scope", "범위 미상"), 0) + 1
+    st.caption(f"{len(saved)}개 · " + " · ".join(f"{k} {v}" for k, v in list(scopes.items())[:3])
+               + " · data/saved_ideas.json에 보관됩니다")
+    label = "← 분석 화면으로" if st.session_state.show_saved else f"★ 저장 목록 보기 ({len(saved)})"
+    if st.button(label, key="saved_toggle", width="stretch"):
+        st.session_state.show_saved = not st.session_state.show_saved
+        st.session_state.show_trials = False
         st.rerun()
 
 
@@ -704,7 +699,7 @@ with st.sidebar:
     # 확인할 때만 여는 정보라서, 임상시험·백테스트 메뉴보다 뒤가 맞다.
     render_trials_menu()
     st.divider()
-    render_backtest_menu()
+    render_saved_menu()
     st.divider()
     render_run_log()
     st.divider()
@@ -735,97 +730,6 @@ if run_clicked:
 
 if st.session_state.error:
     st.error(st.session_state.error)
-
-# --- 백테스트 화면 ----------------------------------------------------------
-# 결과 파일만 읽어 보여준다. 실행은 명령줄에서만 한다 — 3년치 수집이라 화면이 멈춘다.
-# 임상시험 화면과 같은 이유로 "분석 결과 없음" st.stop()보다 앞에 둔다.
-if st.session_state.show_backtest:
-    report = _backtest_report()
-    if not report:
-        section("01", "백테스트", "아직 실행하지 않았습니다")
-        st.markdown("""
-시계를 과거로 돌려 **그때의 초록만으로** 아이디어를 만들고, 그 이후에 실제로 그 공백이
-채워졌는지 채점합니다. 탐지기와 판정기가 미래를 예측하는지 숫자로 확인하는 유일한 방법입니다.
-
-앱에서는 돌리지 않습니다 — 3년치 PubMed 수집이라 화면이 몇 분씩 멈춥니다. 터미널에서
-아래를 실행하시면 이 화면에 결과가 채워집니다.
-
-**1단계 · 무료** — 탐지기 자체가 미래를 예측하는가
-```
-python scripts/backtest.py
-```
-
-**2단계 · 후보당 약 110원** — 판정기가 기회와 구조적 공백을 실제로 가르는가
-```
-python scripts/backtest.py --judge
-```
-
-판정은 캐시되므로 같은 조건으로 다시 돌리면 무료입니다. NCBI·Gemini 키는
-`.streamlit/secrets.toml`에서 자동으로 읽습니다.
-""")
-        st.caption("창을 바꾸려면 `--past-from 2023-01-01 --past-to 2023-12-31` 처럼 지정하고, "
-                   "채점 표본을 늘리려면 `--candidates 40`을 씁니다. "
-                   "결과는 `data/backtest/`에 JSON과 마크다운으로 함께 저장됩니다.")
-        st.stop()
-    meta = report.get("meta") or {}
-    summary = report.get("summary") or {}
-    outcomes = report.get("outcomes") or []
-
-    section("01", "백테스트", f"{report.get('path', '')} · 생성 {meta.get('generatedAt', '')[:16]}")
-    st.caption("시계를 과거로 돌려 그때의 초록만으로 아이디어를 만들고, 그 이후에 실제로 "
-               "그 공백이 채워졌는지 채점한 결과입니다. 탐지기와 판정기가 미래를 예측하는지 "
-               "숫자로 확인하는 유일한 방법입니다. 실행은 명령줄에서 합니다 — "
-               "`python scripts/backtest.py`.")
-
-    b1, b2, b3, b4 = st.columns(4)
-    b1.metric("후보", f"{meta.get('ideas', 0)}개")
-    b2.metric("채점", f"{summary.get('scored', 0)}개")
-    b3.metric("건너뜀", f"{len(summary.get('skipped') or [])}개")
-    b4.metric("판정 포함", f"{meta.get('judged', 0)}개")
-    st.caption(f"과거 창 {meta.get('pastFrom', '')} ~ {meta.get('pastTo', '')} "
-               f"(초록 {meta.get('pastArticles', 0):,}편) → "
-               f"미래 창 {meta.get('futureFrom', '')} ~ {meta.get('futureTo', '')} "
-               f"(초록 {meta.get('futureArticles', 0):,}편)")
-
-    section("02", "판정별 채움률", "opportunity가 structural보다 뚜렷이 높아야 판정이 작동하는 것입니다")
-    rows = []
-    for verdict, row in (summary.get("byVerdict") or {}).items():
-        n = row["count"] or 1
-        rows.append({
-            "판정": VERDICT_LABEL.get(verdict, verdict).split(" —")[0],
-            "건수": row["count"],
-            "기준 A (공백 해소)": f"{row['filledByRatio']} ({round(row['filledByRatio'] / n * 100)}%)",
-            f"기준 B (직접 논문 {BACKTEST_MIN_PAPERS}편+)": f"{row['filledByCount']} ({round(row['filledByCount'] / n * 100)}%)",
-            "둘 중 하나": f"{row['filledEither']} ({round(row['filledEither'] / n * 100)}%)",
-        })
-    if rows:
-        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
-    else:
-        st.caption("채점된 항목이 없습니다.")
-    if summary.get("scored", 0) < 10:
-        st.warning(f"채점된 공백이 {summary.get('scored', 0)}개뿐입니다. 경향을 보는 용도이지 "
-                   "통계적 근거가 아닙니다 — `--candidates`를 올리거나 창을 넓혀 다시 돌리세요.")
-    st.caption("기준 A는 같은 탐지 조건으로 다시 재서 공백이 사라졌고 그 이유가 기준선 하락이 "
-               "아니라 비율 상승인 경우입니다. 기준 B는 절대 편수라 큰 클러스터에 유리하므로, "
-               "아래 표의 `기대 편수`(과거 비율 × 미래 표본)와 견줘 읽으세요.")
-
-    section("03", "공백별 상세", f"{len(outcomes)}개")
-    detail = []
-    for o in outcomes:
-        detail.append({
-            "클러스터 × 공백": f"{o.get('cluster', '')} × {o.get('gapId', '')}",
-            "판정": VERDICT_LABEL.get(o.get("verdict", ""), o.get("verdict", "")).split(" —")[0],
-            "과거 비율": f"{round((o.get('pastRatio') or 0) * 100, 1)}%",
-            "미래 비율": ("—" if o.get("skipped") else f"{round((o.get('futureRatio') or 0) * 100, 1)}%"),
-            "직접 논문": ("—" if o.get("skipped") else o.get("futureObserved")),
-            "기대 편수": ("—" if o.get("skipped") else o.get("expectedAtPastRate")),
-            "기준 A": ("—" if o.get("skipped") else ("충족" if o.get("filledByRatio") else "")),
-            "기준 B": ("—" if o.get("skipped") else ("충족" if o.get("filledByCount") else "")),
-            "비고": o.get("skipped") or o.get("ratioNote", ""),
-        })
-    st.dataframe(pd.DataFrame(detail), hide_index=True, width="stretch")
-    st.stop()   # 백테스트 화면에서는 아래 분석 화면을 그리지 않는다
-
 
 # --- 임상시험 레이더 화면 --------------------------------------------------
 # 아이디어 파이프라인과 독립이라 분석 결과가 없어도 열려야 한다. 그래서 아래
@@ -1004,7 +908,10 @@ with left:
             "변화": f"{'+' if t['delta'] > 0 else ''}{t['delta']}%",
             "신호": signal_label(t["signal"]), "비중": t["share"],
         } for n, t in rows])
-        st.dataframe(tdf, hide_index=True, width="stretch",
+        # 높이를 고정해 상자 안에서만 스크롤되게 한다. 그냥 두면 주제 수만큼 표가
+        # 길어져(상승 신호가 많은 범위는 15행까지 간다) 아래 아이디어 목록이 화면
+        # 밖으로 밀린다. 여기는 훑어보는 표이지 정독하는 표가 아니다.
+        st.dataframe(tdf, hide_index=True, width="stretch", height=TREND_TABLE_HEIGHT,
                      column_config={"비중": st.column_config.ProgressColumn("비중", format="%d%%", min_value=0, max_value=100)})
         if rising_tail:
             st.caption(f"편수 {TREND_ROWS}위 밖의 상승 신호 {len(rising_tail)}개를 아래에 덧붙였습니다.")
