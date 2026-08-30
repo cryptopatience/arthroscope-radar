@@ -700,11 +700,13 @@ with st.sidebar:
                + (" · Gemini 고도화 가능" if secret("GEMINI_API_KEY") else " · GEMINI_API_KEY 없음")
                + (f" · 고도화 결과 {cached_enhancements}건 재사용 대기" if cached_enhancements else ""))
     st.divider()
-    render_run_log()
-    st.divider()
+    # 운영 로그는 맨 아래에 둔다. 매일 보는 것이 아니라 "며칠째 안 돌았나"를
+    # 확인할 때만 여는 정보라서, 임상시험·백테스트 메뉴보다 뒤가 맞다.
     render_trials_menu()
     st.divider()
     render_backtest_menu()
+    st.divider()
+    render_run_log()
     st.divider()
     if st.session_state.snapshot:
         snap = st.session_state.snapshot
