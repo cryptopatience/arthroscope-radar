@@ -712,8 +712,8 @@ st.markdown(f'<p class="hero-text">{len(JOURNALS)}개 핵심 저널의 PubMed �
 
 with st.sidebar:
     # 사이드바에 도구가 넷이 되면서 이 자리도 "무엇을 입력하나"가 아니라 "어느
-    # 도구인가"를 가리키는 편이 낫다. 아래 02번 섹션의 Research signals와 짝이 맞는다.
-    st.markdown("### Research Idea")
+    # 도구인가"를 가리킨다. 사이드바 항목은 한국어로 통일한다.
+    st.markdown("### 연구 아이디어")
     selected: list[str] = []
     for fam in FAMILY_ORDER:
         members = [k for k in JOURNAL_ORDER if JOURNALS[k]["family"] == fam]
