@@ -711,7 +711,9 @@ st.markdown('<h1 class="hero-title">지난 1년의 초록에서<br><em>다음 �
 st.markdown(f'<p class="hero-text">{len(JOURNALS)}개 핵심 저널의 PubMed 초록에서 무릎 논문만 추려, 연구 신호와 빈틈을 근거 논문까지 연결해 보여주는 정형외과 연구 레이더입니다.</p>', unsafe_allow_html=True)
 
 with st.sidebar:
-    st.markdown("### 분석 조건")
+    # 사이드바에 도구가 넷이 되면서 이 자리도 "무엇을 입력하나"가 아니라 "어느
+    # 도구인가"를 가리키는 편이 낫다. 아래 02번 섹션의 Research signals와 짝이 맞는다.
+    st.markdown("### Research Idea")
     selected: list[str] = []
     for fam in FAMILY_ORDER:
         members = [k for k in JOURNAL_ORDER if JOURNALS[k]["family"] == fam]
