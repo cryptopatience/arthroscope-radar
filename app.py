@@ -31,6 +31,10 @@ from radar.trials import (ACTIVE_STATUSES, FAMILY_LABEL as TRIAL_FAMILY_LABEL, S
 TREND_ROWS = 9          # 편수 순 표에서 먼저 보여주는 행 수. 그 아래 상승 신호는 따로 덧붙인다.
 # 신호 표의 고정 높이(픽셀). 대략 여섯 행 + 머리글이 보이고 나머지는 스크롤된다.
 TREND_TABLE_HEIGHT = 248
+# NCT 번호를 눌러 ClinicalTrials.gov로 바로 가게 한다. 값에는 주소를 넣고 화면에는
+# 주소에서 뽑은 NCT 번호만 보이게 해서, 번호를 읽는 표라는 성격을 유지한다.
+NCT_LINK_COLUMN = st.column_config.LinkColumn(
+    "NCT", display_text=r"https://clinicaltrials\.gov/study/(NCT\d+)")
 ARTICLE_PAGE = 8
 SNAPSHOT_PATH = Path("data/daily.json")
 RUN_LOG_PATH = Path("data/run_log.json")     # 일일 작업이 실행마다 한 줄씩 남기는 기록
@@ -764,18 +768,19 @@ if st.session_state.show_trials:
         section("02", "최근 변동", "지난 수집과의 비교")
         rows = []
         for c in changes.get("statusChanged", []):
-            rows.append({"종류": "상태 변경", "NCT": c["nctId"], "제목": c["title"][:80],
+            rows.append({"종류": "상태 변경", "NCT": trial_url(c["nctId"]), "제목": c["title"][:80],
                          "내용": f"{STATUS_LABEL.get(c['from'], c['from'])} → {STATUS_LABEL.get(c['to'], c['to'])}"})
         for c in changes.get("resultsPosted", []):
-            rows.append({"종류": "결과 게시", "NCT": c["nctId"], "제목": c["title"][:80], "내용": "결과 데이터 공개됨"})
+            rows.append({"종류": "결과 게시", "NCT": trial_url(c["nctId"]), "제목": c["title"][:80], "내용": "결과 데이터 공개됨"})
         for c in changes.get("new", []):
-            rows.append({"종류": "신규 등록", "NCT": c["nctId"], "제목": c["title"][:80],
+            rows.append({"종류": "신규 등록", "NCT": trial_url(c["nctId"]), "제목": c["title"][:80],
                          "내용": STATUS_LABEL.get(c["status"], c["status"])})
         for c in changes.get("completionMoved", []):
-            rows.append({"종류": "완료일 이동", "NCT": c["nctId"], "제목": c["title"][:80],
+            rows.append({"종류": "완료일 이동", "NCT": trial_url(c["nctId"]), "제목": c["title"][:80],
                          "내용": f"{c['from']} → {c['to']}"})
         if rows:
-            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch",
+                         column_config={"NCT": NCT_LINK_COLUMN})
         else:
             st.caption("변동 없음.")
         if changes.get("gone"):
@@ -810,16 +815,15 @@ if st.session_state.show_trials:
                      key=lambda t: t.get("lastUpdated") or "", reverse=True)
     st.caption(f"{len(visible)}건 표시 · 최근 갱신 순")
     st.dataframe(pd.DataFrame([{
-        "NCT": t["nctId"],
+        "NCT": trial_url(t["nctId"]),
         "제목": t["title"][:90],
         "상태": STATUS_LABEL.get(t["status"], t["status"]),
         "계열": " · ".join(TRIAL_FAMILY_LABEL.get(f, f) for f in t.get("families", [])),
         "목표 인원": t.get("enrollment"),
         "1차 완료 예정": t.get("primaryCompletionDate") or "—",
         "결과": "게시" if t.get("hasResults") else "",
-        "링크": trial_url(t["nctId"]),
     } for t in visible[:200]]), hide_index=True, width="stretch",
-        column_config={"링크": st.column_config.LinkColumn("링크", display_text="열기")})
+        column_config={"NCT": NCT_LINK_COLUMN})
     if len(visible) > 200:
         st.caption("200건까지만 표시합니다. 필터를 좁혀 주세요.")
     st.stop()   # 임상시험 화면에서는 아래 분석 화면을 그리지 않는다
