@@ -23,6 +23,8 @@ from radar.judge import VERDICT_LABEL, evidence_summary
 from radar.selection import PROM_SUBTYPES, gap_category, select
 from radar.vocabulary import GAP_CATEGORIES, LONGTERM_SUBTYPES
 from radar.ncbi import NcbiCredentials
+from radar.briefing import load as load_briefing
+from radar.briefing import weeks as briefing_weeks
 from radar.trend_history import load as load_trend_history
 from radar.trend_history import weeks as history_weeks
 from radar.trials import (ACTIVE_STATUSES, FAMILY_LABEL as TRIAL_FAMILY_LABEL, STATUS_LABEL,
@@ -155,6 +157,8 @@ def init_state():
         # 임상시험 레이더는 아이디어 파이프라인과 독립이다. 상태도 따로 둔다.
         "show_trials": False, "trials_family": "전체", "trials_status": "활성만",
         "trials_knee_only": True,
+        # 이번 주 진료 브리핑. 아이디어 파이프라인과 독립이라 상태도 따로 둔다.
+        "show_briefing": False,
         "saved_ideas": load_saved(),
     }
     for key, value in defaults.items():
@@ -587,6 +591,32 @@ def render_trials_menu():
     label = "← 분석 화면으로" if st.session_state.show_trials else "임상시험 보기 →"
     if st.button(label, key="trials_toggle", width="stretch"):
         st.session_state.show_trials = not st.session_state.show_trials
+        st.session_state.show_briefing = False
+        st.rerun()
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _briefing_history():
+    return load_briefing()
+
+
+def render_briefing_menu():
+    """사이드바 진료 브리핑. 이번 주 초록에서 진료가 바뀔 만한 것만 추린 목록이다."""
+    st.markdown("### 이번 주 진료 브리핑")
+    history = _briefing_history()
+    weeks = briefing_weeks(history)
+    if not weeks:
+        st.caption("아직 없습니다. 금요일 야간 작업이 한 번 돌면 여기에 나타납니다.")
+        return
+    latest = history["weeks"][weeks[0]]
+    picked = len(latest.get("items") or [])
+    st.caption(f"{weeks[0]} · 초록 {latest.get('reviewed', 0)}편 중 "
+               + (f"**{picked}편** 선정" if picked else "선정 없음"))
+    label = "← 분석 화면으로" if st.session_state.show_briefing else f"브리핑 보기 → ({picked})"
+    if st.button(label, key="briefing_toggle", width="stretch"):
+        st.session_state.show_briefing = not st.session_state.show_briefing
+        st.session_state.show_trials = False
+        st.session_state.show_saved = False
         st.rerun()
 
 
@@ -610,6 +640,7 @@ def render_saved_menu():
     if st.button(label, key="saved_toggle", width="stretch"):
         st.session_state.show_saved = not st.session_state.show_saved
         st.session_state.show_trials = False
+        st.session_state.show_briefing = False
         st.rerun()
 
 
@@ -703,6 +734,8 @@ with st.sidebar:
     st.divider()
     # 운영 로그는 맨 아래에 둔다. 매일 보는 것이 아니라 "며칠째 안 돌았나"를
     # 확인할 때만 여는 정보라서, 임상시험·백테스트 메뉴보다 뒤가 맞다.
+    render_briefing_menu()
+    st.divider()
     render_trials_menu()
     st.divider()
     render_saved_menu()
@@ -736,6 +769,55 @@ if run_clicked:
 
 if st.session_state.error:
     st.error(st.session_state.error)
+
+# --- 이번 주 진료 브리핑 화면 --------------------------------------------------
+# 아이디어 파이프라인과 목적이 반대다. 저쪽은 "무엇이 비어 있나", 여기는 "이번 주에
+# 내 진료가 바뀔 만한 소식이 있나"를 본다. 분석 결과가 없어도 열려야 하므로
+# "분석 결과 없음" st.stop()보다 앞에 둔다.
+if st.session_state.show_briefing:
+    history = _briefing_history()
+    available = briefing_weeks(history)
+    if not available:
+        st.info("진료 브리핑이 아직 없습니다. 금요일 야간 작업이 한 번 돌면 만들어집니다.")
+        st.stop()
+    section("01", "이번 주 진료 브리핑", "지난 한 주 초록에서 진료가 바뀔 만한 것만")
+    st.caption("주요 저널에 지난 한 주 사이 실린 무릎 초록을 전부 읽고, 다음 주 진료에 "
+               "영향을 줄 수 있는 것만 골랐습니다. 대부분의 주는 0~4편입니다 — "
+               "생체역학·소규모 단면조사·척도 검증은 진료를 바꾸지 않으므로 뺍니다. "
+               "연구 아이디어 화면과는 목적이 반대입니다(저쪽은 빈칸, 여기는 채워진 것).")
+
+    picked_week = st.selectbox("주차", available, index=0, key="briefing_week",
+                               label_visibility="collapsed")
+    entry = history["weeks"].get(picked_week) or {}
+    items = entry.get("items") or []
+    note = (f"{picked_week} · {entry.get('period', '')} · 초록 {entry.get('reviewed', 0)}편 검토 · "
+            f"{entry.get('model', '')}")
+    if picked_week != available[0]:
+        note += " · 지난 주차를 보고 있습니다"
+    st.caption(note)
+    if entry.get("summary"):
+        st.markdown(f'<div class="ai"><div class="lbl">이번 주 요약</div><p>{esc(entry["summary"])}</p></div>',
+                    unsafe_allow_html=True)
+
+    if not items:
+        st.info("이번 주에는 진료에 영향을 줄 만한 논문이 없었습니다. "
+                "억지로 채우지 않고 비워 둡니다.")
+    for n, item in enumerate(items, 1):
+        with st.container(border=True):
+            tags = "".join(f'<span class="tag">{esc(t)}</span>'
+                           for t in (item.get("area"), f"근거 {item.get('strength')}") if t and "None" not in str(t))
+            st.markdown(f"**{n:02d}** &nbsp; {tags}", unsafe_allow_html=True)
+            st.markdown(f"#### {item.get('headline', '')}")
+            st.write(item.get("detail", ""))
+            if item.get("action"):
+                st.markdown(f'<div class="prior"><b>무엇을 할까</b> {esc(item["action"])}</div>',
+                            unsafe_allow_html=True)
+            st.markdown(f"[PMID {item.get('pmid', '')}]({pubmed(item.get('pmid', ''))}) · "
+                        f"{esc(item.get('journal', ''))} · {esc(item.get('title', '')[:110])}")
+    if entry.get("droppedCitations"):
+        st.caption(f"목록에 없던 인용 {entry['droppedCitations']}건을 제거했습니다.")
+    st.stop()   # 브리핑 화면에서는 아래 분석 화면을 그리지 않는다
+
 
 # --- 임상시험 레이더 화면 --------------------------------------------------
 # 아이디어 파이프라인과 독립이라 분석 결과가 없어도 열려야 한다. 그래서 아래

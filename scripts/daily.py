@@ -601,6 +601,25 @@ def main(started: datetime):
         except Exception as error:
             log(f"동향 분석 이력 기록 실패 (분석 결과에는 영향 없음): {error}")
 
+        # 이번 주 진료 브리핑. 지난 한 주 초록만 다시 받아 한 번 읽힌다(주당 약 80원).
+        # 아이디어 파이프라인과 목적이 반대라 — 공백이 아니라 채워진 것을 찾는다 —
+        # 스냅샷과 별도 파일에 주차별로 쌓는다.
+        try:
+            from radar.briefing import build as build_briefing
+            from radar.briefing import record_week as record_briefing
+            from radar.briefing import recent_pmids
+            week_pmids, week_from, week_to = recent_pmids(analysis)
+            log(f"이번 주 진료 브리핑 — {week_from}~{week_to} 초록 {len(week_pmids)}편")
+            briefing = build_briefing(week_pmids, f"{week_from}–{week_to}", creds, key, model)
+            if briefing.get("error"):
+                log(f"  브리핑 건너뜀: {briefing['error']}")
+            else:
+                wk = record_briefing(briefing, ai_refreshed_at)
+                log(f"  브리핑 기록 {wk} — 읽은 초록 {briefing['reviewed']}편 중 "
+                    f"{len(briefing['items'])}편 선정")
+        except Exception as error:
+            log(f"진료 브리핑 실패 (분석 결과에는 영향 없음): {error}")
+
     # 임상시험 레이더. 아이디어 파이프라인과 독립이라 스냅샷을 다 쓴 뒤에 돌리고,
     # 실패해도 넘어간다 — 독립 기능은 독립적으로 실패해야 한다. ClinicalTrials.gov는
     # 무료·키 불필요라 비용이 없고 40초쯤 걸린다.
