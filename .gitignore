@@ -1,5 +1,6 @@
 __pycache__/
 streamlit*.log
+data/obsidian_sync.log
 *.pyc
 .streamlit/secrets.toml
 data/saved_ideas.json

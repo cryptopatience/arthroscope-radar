@@ -17,6 +17,7 @@ import streamlit as st
 
 from radar import config
 from radar.obsidian import export_idea, notes_directory
+from radar.cloud_saved import CloudStore, CloudSaveError, configured as cloud_configured
 from radar.analysis import FAMILIES, FAMILY_ORDER, JOURNAL_ORDER, JOURNALS, AnalysisError, run_analysis
 from radar.cache import cache_key, get as cache_get, load as cache_load, put as cache_put
 from radar.gemini import ENHANCE_MIN, enhance_idea, pmids_for_idea, resolve_model
@@ -160,13 +161,19 @@ def init_state():
         "trials_knee_only": True,
         # 이번 주 진료 브리핑. 아이디어 파이프라인과 독립이라 상태도 따로 둔다.
         "show_briefing": False,
-        "saved_ideas": load_saved(),
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
+    if "saved_ideas" not in st.session_state:
+        st.session_state.saved_ideas = load_saved()
 
 
 def load_saved() -> list[dict]:
+    if cloud_configured():
+        try:
+            return CloudStore().read()[0]
+        except CloudSaveError as exc:
+            st.session_state["obsidian_notice"] = ("error", str(exc))
     try:
         return json.loads(SAVED_PATH.read_text("utf-8"))
     except Exception:
@@ -465,6 +472,26 @@ def is_saved(idea_id: str) -> bool:
 
 
 def toggle_saved(idea: dict, scope_label: str):
+    removing = is_saved(idea["id"])
+    entry = {**idea, "savedAt": datetime.now().astimezone().isoformat(), "scope": scope_label}
+    if cloud_configured():
+        try:
+            values = CloudStore().update(entry, remove=removing)
+        except CloudSaveError as exc:
+            st.session_state["obsidian_notice"] = ("error", str(exc))
+            return
+        st.session_state.saved_ideas = values
+        st.session_state["obsidian_notice"] = ("success", "온라인 저장 해제 완료. 기존 Obsidian 노트는 유지됩니다." if removing else "온라인 저장 완료. 노트북 동기화 시 Obsidian에 노트가 생성됩니다.")
+        if not removing:
+            entry = next(i for i in values if i["id"] == idea["id"])
+            try:
+                path = export_idea(entry)
+                if path:
+                    entry["obsidianPath"] = str(path)
+            except OSError:
+                st.session_state["obsidian_notice"] = ("warning", "온라인 저장 완료. Obsidian 폴더는 다음 노트북 동기화 때 다시 확인합니다.")
+        persist_saved()
+        return
     if is_saved(idea["id"]):
         st.session_state.saved_ideas = [i for i in st.session_state.saved_ideas if i["id"] != idea["id"]]
     else:
@@ -640,6 +667,33 @@ def render_saved_menu():
     notice = st.session_state.pop("obsidian_notice", None)
     if notice:
         getattr(st, notice[0])(notice[1])
+    if cloud_configured():
+        st.caption("온라인 저장 연결 · 노트북 로그인 시 및 매일 오전 9시에 Obsidian으로 동기화됩니다.")
+        try:
+            local_only = [i for i in json.loads(SAVED_PATH.read_text("utf-8"))
+                          if i["id"] not in {s["id"] for s in saved}]
+        except (OSError, ValueError, KeyError, TypeError):
+            local_only = []
+        if local_only:
+            with st.expander(f"이 기기에만 저장된 아이디어 {len(local_only)}개"):
+                st.caption("비공개 온라인 저장소로 옮기면 다른 기기와 동기화됩니다.")
+                for entry in local_only:
+                    st.write(entry["title"])
+                if st.button("기존 아이디어를 온라인으로 옮기기", key="cloud_migrate_local"):
+                    try:
+                        store = CloudStore()
+                        for entry in local_only:
+                            st.session_state.saved_ideas = store.update(entry)
+                        persist_saved()
+                        st.session_state["obsidian_notice"] = ("success", "기존 아이디어를 온라인에 저장했습니다.")
+                        st.rerun()
+                    except CloudSaveError as exc:
+                        st.error(str(exc))
+        if st.button("온라인 저장 목록 새로고침", key="cloud_saved_refresh"):
+            st.session_state.saved_ideas = load_saved()
+            st.rerun()
+    elif not notes_directory():
+        st.warning("현재 이 앱에만 저장됩니다. 모바일→Obsidian 자동 동기화에는 온라인 저장 설정이 필요합니다.")
     if notes_directory():
         st.caption("☆ 저장 시 Obsidian에 날짜·제목이 붙은 노트도 생성됩니다.")
         with st.expander("Obsidian 저장 설정"):
@@ -666,7 +720,7 @@ def render_saved_menu():
     for i in saved:
         scopes[i.get("scope", "범위 미상")] = scopes.get(i.get("scope", "범위 미상"), 0) + 1
     st.caption(f"{len(saved)}개 · " + " · ".join(f"{k} {v}" for k, v in list(scopes.items())[:3])
-               + " · data/saved_ideas.json에 보관됩니다")
+               + (" · 온라인에 보관됩니다" if cloud_configured() else " · 이 기기에 보관됩니다"))
     label = "← 분석 화면으로" if st.session_state.show_saved else f"★ 저장 목록 보기 ({len(saved)})"
     if st.button(label, key="saved_toggle", width="stretch"):
         st.session_state.show_saved = not st.session_state.show_saved
@@ -1085,7 +1139,7 @@ saved = st.session_state.saved_ideas
 show_saved = st.session_state.show_saved and bool(saved)
 
 if show_saved:
-    note = f"저장한 아이디어 {len(saved)}개 · data/saved_ideas.json에 보관됩니다"
+    note = f"저장한 아이디어 {len(saved)}개 · " + ("온라인에 보관됩니다" if cloud_configured() else "이 기기에 보관됩니다")
 elif kind == "all" or fell_back:
     note = f"선택한 저널 전체 {analysis['analyzed']:,}편 기준" + (f" · {scope_label} 단독으로는 상승 신호가 부족합니다" if fell_back else "")
 else:
