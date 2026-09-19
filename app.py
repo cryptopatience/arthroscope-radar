@@ -16,6 +16,7 @@ import requests
 import streamlit as st
 
 from radar import config
+from radar.obsidian import export_idea, notes_directory
 from radar.analysis import FAMILIES, FAMILY_ORDER, JOURNAL_ORDER, JOURNALS, AnalysisError, run_analysis
 from radar.cache import cache_key, get as cache_get, load as cache_load, put as cache_put
 from radar.gemini import ENHANCE_MIN, enhance_idea, pmids_for_idea, resolve_model
@@ -467,7 +468,15 @@ def toggle_saved(idea: dict, scope_label: str):
     if is_saved(idea["id"]):
         st.session_state.saved_ideas = [i for i in st.session_state.saved_ideas if i["id"] != idea["id"]]
     else:
-        st.session_state.saved_ideas = [{**idea, "savedAt": datetime.now().isoformat(), "scope": scope_label}] + st.session_state.saved_ideas
+        entry = {**idea, "savedAt": datetime.now().astimezone().isoformat(), "scope": scope_label}
+        st.session_state.saved_ideas = [entry] + st.session_state.saved_ideas
+        try:
+            path = export_idea(entry)
+            if path:
+                entry["obsidianPath"] = str(path)
+                st.session_state["obsidian_notice"] = ("success", f"Obsidian 노트 저장 완료: {path.name}")
+        except OSError as exc:
+            st.session_state["obsidian_notice"] = ("error", f"앱 목록에는 저장했지만 Obsidian 노트 저장에 실패했습니다: {exc}")
     persist_saved()
 
 
@@ -628,6 +637,28 @@ def render_saved_menu():
     """
     saved = st.session_state.saved_ideas
     st.markdown("### 저장한 아이디어")
+    notice = st.session_state.pop("obsidian_notice", None)
+    if notice:
+        getattr(st, notice[0])(notice[1])
+    if notes_directory():
+        st.caption("☆ 저장 시 Obsidian에 날짜·제목이 붙은 노트도 생성됩니다.")
+        with st.expander("Obsidian 저장 설정"):
+            st.text(notes_directory())
+            st.caption("저장 해제 시에도 노트는 유지됩니다. 기존 노트는 덮어쓰지 않습니다.")
+            if saved and st.button("저장한 아이디어를 Obsidian에 내보내기", key="obsidian_retry"):
+                failures = []
+                for entry in saved:
+                    try:
+                        path = export_idea(entry)
+                        if path:
+                            entry["obsidianPath"] = str(path)
+                    except OSError as exc:
+                        failures.append(str(exc))
+                persist_saved()
+                if failures:
+                    st.error(f"Obsidian 저장 실패 ({len(failures)}개): {failures[0]}")
+                else:
+                    st.success(f"{len(saved)}개 노트를 확인했습니다.")
     if not saved:
         st.caption("아직 없습니다. 아이디어 카드의 **☆ 저장**을 누르면 여기에 쌓입니다.")
         return
