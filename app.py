@@ -481,8 +481,9 @@ def toggle_saved(idea: dict, scope_label: str):
             st.session_state["obsidian_notice"] = ("error", str(exc))
             return
         st.session_state.saved_ideas = values
-        st.session_state["obsidian_notice"] = ("success", "온라인 저장 해제 완료. 기존 Obsidian 노트는 유지됩니다." if removing else "온라인 저장 완료. 노트북 동기화 시 Obsidian에 노트가 생성됩니다.")
+        st.session_state.pop("obsidian_notice", None)
         if not removing:
+            st.session_state["obsidian_notice"] = ("success", "온라인 저장 완료. 노트북 동기화 시 Obsidian에 노트가 생성됩니다.")
             entry = next(i for i in values if i["id"] == idea["id"])
             try:
                 path = export_idea(entry)
