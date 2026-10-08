@@ -1,5 +1,31 @@
 [
  {
+  "at": "2026-10-08T16:35:00.450678+00:00",
+  "date": "2026-10-08",
+  "ok": true,
+  "seconds": 74,
+  "collected": 5455,
+  "analyzed": 1951,
+  "withAbstract": 4355,
+  "totalAvailable": 5455,
+  "capped": false,
+  "journals": 10,
+  "ideas": 6,
+  "sizeMB": 2.01,
+  "ai": {
+   "ran": false,
+   "reason": "마지막 AI 갱신 6일 전 — 지난 결과 재사용",
+   "model": "gemini-3.1-pro-preview",
+   "judged": 12,
+   "suggested": 2,
+   "trends": 2,
+   "priorArt": 8,
+   "final": 2,
+   "failed": 0
+  },
+  "error": null
+ },
+ {
   "at": "2026-10-07T16:37:05.043869+00:00",
   "date": "2026-10-07",
   "ok": true,
