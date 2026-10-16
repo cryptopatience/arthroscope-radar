@@ -1,12 +1,12 @@
 {
- "commit": "3a840db",
+ "commit": "269d7a6",
  "workingTreeDirty": false,
  "cacheVersion": "p6.k2.c7.t4.r5",
- "retrievalDate": "2026-10-15",
- "generatedAt": "2026-10-15T14:13:53.137492+00:00",
+ "retrievalDate": "2026-10-16",
+ "generatedAt": "2026-10-16T14:01:22.463494+00:00",
  "period": {
-  "from": "2025-10-15",
-  "to": "2026-10-15"
+  "from": "2025-10-16",
+  "to": "2026-10-16"
  },
  "journalSet": [
   "joa",
@@ -21,16 +21,16 @@
   "ojsm"
  ],
  "pubmedQueries": {
-  "joa": "\"J Arthroplasty\"[jour] AND (\"2025/10/15\"[Date - Publication] : \"2026/10/15\"[Date - Publication])",
-  "at": "\"Arthroplast Today\"[jour] AND (\"2025/10/15\"[Date - Publication] : \"2026/10/15\"[Date - Publication])",
-  "bjj": "\"Bone Joint J\"[jour] AND (\"2025/10/15\"[Date - Publication] : \"2026/10/15\"[Date - Publication])",
-  "jbjsam": "\"J Bone Joint Surg Am\"[jour] AND (\"2025/10/15\"[Date - Publication] : \"2026/10/15\"[Date - Publication])",
-  "corr": "\"Clin Orthop Relat Res\"[jour] AND (\"2025/10/15\"[Date - Publication] : \"2026/10/15\"[Date - Publication])",
-  "acta": "\"Acta Orthop\"[jour] AND (\"2025/10/15\"[Date - Publication] : \"2026/10/15\"[Date - Publication])",
-  "kssta": "\"Knee Surg Sports Traumatol Arthrosc\"[jour] AND (\"2025/10/15\"[Date - Publication] : \"2026/10/15\"[Date - Publication])",
-  "arthroscopy": "\"Arthroscopy\"[jour] AND (\"2025/10/15\"[Date - Publication] : \"2026/10/15\"[Date - Publication])",
-  "ajsm": "\"Am J Sports Med\"[jour] AND (\"2025/10/15\"[Date - Publication] : \"2026/10/15\"[Date - Publication])",
-  "ojsm": "\"Orthop J Sports Med\"[jour] AND (\"2025/10/15\"[Date - Publication] : \"2026/10/15\"[Date - Publication])"
+  "joa": "\"J Arthroplasty\"[jour] AND (\"2025/10/16\"[Date - Publication] : \"2026/10/16\"[Date - Publication])",
+  "at": "\"Arthroplast Today\"[jour] AND (\"2025/10/16\"[Date - Publication] : \"2026/10/16\"[Date - Publication])",
+  "bjj": "\"Bone Joint J\"[jour] AND (\"2025/10/16\"[Date - Publication] : \"2026/10/16\"[Date - Publication])",
+  "jbjsam": "\"J Bone Joint Surg Am\"[jour] AND (\"2025/10/16\"[Date - Publication] : \"2026/10/16\"[Date - Publication])",
+  "corr": "\"Clin Orthop Relat Res\"[jour] AND (\"2025/10/16\"[Date - Publication] : \"2026/10/16\"[Date - Publication])",
+  "acta": "\"Acta Orthop\"[jour] AND (\"2025/10/16\"[Date - Publication] : \"2026/10/16\"[Date - Publication])",
+  "kssta": "\"Knee Surg Sports Traumatol Arthrosc\"[jour] AND (\"2025/10/16\"[Date - Publication] : \"2026/10/16\"[Date - Publication])",
+  "arthroscopy": "\"Arthroscopy\"[jour] AND (\"2025/10/16\"[Date - Publication] : \"2026/10/16\"[Date - Publication])",
+  "ajsm": "\"Am J Sports Med\"[jour] AND (\"2025/10/16\"[Date - Publication] : \"2026/10/16\"[Date - Publication])",
+  "ojsm": "\"Orthop J Sports Med\"[jour] AND (\"2025/10/16\"[Date - Publication] : \"2026/10/16\"[Date - Publication])"
  },
  "priorArtQueries": {
   "임플란트·기술::cross_외래·회복": "(\"knee\"[tiab] OR \"knees\"[tiab]) AND (\"implant\"[tiab] OR \"fixed-bearing\"[tiab] OR \"mobile-bearing\"[tiab] OR \"bearing surface\"[tiab] OR \"cementless\"[tiab] OR \"fixation\"[tiab] OR \"polyethylene\"[tiab] OR \"sensor\"[tiab] OR \"wearable\"[tiab] OR \"smartphone\"[tiab]) AND (\"outpatient\"[tiab] OR \"same-day\"[tiab] OR \"enhanced recovery\"[tiab] OR \"length of stay\"[tiab] OR \"discharge\"[tiab] OR \"opioid\"[tiab] OR \"rehabilitation\"[tiab]) AND (\"2016\"[dp] : \"2026\"[dp])",
@@ -296,8 +296,6 @@
   "40878687",
   "40878700",
   "40878711",
-  "40880455",
-  "40880507",
   "40885216",
   "40886077",
   "40886078",
@@ -307,7 +305,6 @@
   "40886085",
   "40886955",
   "40892033",
-  "40892877",
   "40902686",
   "40902688",
   "40905272",
@@ -412,7 +409,6 @@
   "41092185",
   "41092197",
   "41092223",
-  "41092228",
   "41093151",
   "41093152",
   "41101565",
@@ -428,9 +424,6 @@
   "41109364",
   "41110642",
   "41110644",
-  "41122269",
-  "41122271",
-  "41122274",
   "41122275",
   "41122276",
   "41123106",
@@ -2009,24 +2002,28 @@
   "42866640",
   "42868003",
   "42868008",
-  "42876225"
+  "42876225",
+  "42877964",
+  "42879163",
+  "42879166",
+  "42879167"
  ],
- "corpusPmidsHash": "sha256:898ecd397b2874872d0f0a4b55f8b0c09a5dc585b6e5830560fd5ce4e5a3f524",
- "corpusContentHash": "sha256:7199dd4b2d44eab6bb6c96bab93b8cb76d9e6842bba3dd065ca25a309f98dcdb",
- "llmJudgmentHash": "sha256:fbd41a39d2daf872f9c17d92ac2eb2a1e4a9037e20865f1235fc0c2c33f936e0",
+ "corpusPmidsHash": "sha256:4270f3258f554f2e0d643bd1fdceee6675648ee9a5a297885551c817790058cc",
+ "corpusContentHash": "sha256:4ec7974c074333ebc221438e9f90a9865e7b300d9aec173b318f55c57e556f56",
+ "llmJudgmentHash": "sha256:4e2b07783770eab336a3acec8e2d9b6952e26b124e7c3aa233404b255c492868",
  "judgmentScopes": {
   "arthroplasty": 6,
   "arthroscopy": 6
  },
  "priorArtResultHash": "sha256:14720645c94a37b844e172c47d00826051b024d21fb359bb916eb3db157ec574",
  "rawCorpusSnapshot": {
-  "assetName": "corpus-20261015-d5b89834.json.gz",
-  "releaseTag": "corpus-20261015",
-  "path": "data/corpus/corpus-20261015-d5b89834.json.gz",
-  "sha256": "sha256:d5b898344e9cf9a9d54e2a7071b401b92211fb1a53ed3030aeb8372361ae506c",
-  "sizeBytes": 354595,
-  "rawBytes": 1357192,
-  "records": 1968,
+  "assetName": "corpus-20261016-bdeb2699.json.gz",
+  "releaseTag": "corpus-20261016",
+  "path": "data/corpus/corpus-20261016-bdeb2699.json.gz",
+  "sha256": "sha256:bdeb26993b630f8e3e64caf1819b69573c6ea271ada1ed1a6a536d7bea1d0832",
+  "sizeBytes": 354024,
+  "rawBytes": 1355469,
+  "records": 1965,
   "uploaded": false,
   "note": "저장소에 커밋하지 않습니다. 백테스트·논문화를 위해 Release 자산으로 올리고 uploaded를 true로 바꾸세요."
  },
@@ -2077,26 +2074,26 @@
   "judgeRuns": 5
  },
  "judgmentInputHashes": {
-  "arthroplasty::임플란트·기술::cross_외래·회복": "sha256:332e257b45b2e872f39bfa2393c5cb82caf81c438f424502562c161e4da0212e",
-  "arthroplasty::정렬·생체역학::cross_형평성": "sha256:0f5520784e0c7b53a5d974691c3ec27b9f6e7922ca1a3c519c1a428becd19e8e",
-  "arthroplasty::정렬·생체역학::cross_비용·보건정책": "sha256:e0b8a123a6c8c977b12b494104f98b2a8b7a53d8f75229fd85eca6f2d683dd98",
-  "arthroplasty::로봇·내비게이션::cross_형평성": "sha256:4ad724dfd2b6c6551be0ceada56eb00c1c9feb21ecd9c8430f88353af14cde93",
-  "arthroplasty::감염::prom_measurement": "sha256:5dfe7b953cf41bd018f47e0098a3083278934086ee7279899eabde221264ee35",
-  "arthroplasty::재수술·합병증::prospective_design": "sha256:671a35cd60fb45141ab2e83d283915b93f4b608ce929f72fdfccd7ce66ba8f05",
-  "arthroscopy::전방십자인대·반월상::cross_로봇·내비게이션": "sha256:023ce8c962d915fd218ecc2ec1675187091c14faaffb30fdccb168a5ede7304f",
-  "arthroscopy::임플란트·기술::cross_외래·회복": "sha256:6b2f52ee03cfddfd9c4d5b963d6809f783fdd70713e710be5a7ca478f033760f",
-  "arthroscopy::스포츠 복귀::cross_로봇·내비게이션": "sha256:7c72cd3d83aa511b98fb4aa97278caef75597032b602c20adf193fc84390e55e",
-  "arthroscopy::스포츠 복귀::cross_AI·예측": "sha256:da92f3476061ddc52aedf62dd037d3a9080ee950942e3612be1d5f5c615bf0c7",
-  "arthroscopy::AI·예측::clinical_utility": "sha256:044e5049959bc97f70aeecf7f586c377c26f3ea37c3ba0374036881ad1ac2737",
-  "arthroscopy::정렬·생체역학::prom_interpretation": "sha256:f6a92da4ddbdcbf4397d70873c0e558afbe7e71681bfa2320d9b5d7a13a1e653"
+  "arthroplasty::임플란트·기술::cross_외래·회복": "sha256:4310fb9efb5b192c3d98206d011480626bf1d9aa43eec7e84f419d9fe3e93351",
+  "arthroplasty::정렬·생체역학::cross_형평성": "sha256:a0bfc77b1f0266f59a7c8ea999cc572f48482919104d5469ccddfddcdadb8908",
+  "arthroplasty::정렬·생체역학::cross_비용·보건정책": "sha256:1748d39e9af075474a5a467a97c889d394a4a62a1d8feb2d880dc41af028e953",
+  "arthroplasty::로봇·내비게이션::cross_형평성": "sha256:719d83de0c72b0d07152681fae7c8c8f9a68c46a12689de351a1377b98376db3",
+  "arthroplasty::감염::prom_measurement": "sha256:84d1fdd1014d85686b7895b61c66846fcfdea7107d6bf521957e4f0516fcd3aa",
+  "arthroplasty::재수술·합병증::prospective_design": "sha256:4c0fbdede29e92fea6cc1b6656c8f104cb1116916c0cbcccfcbb1645f2c27bb9",
+  "arthroscopy::전방십자인대·반월상::cross_로봇·내비게이션": "sha256:32e81ecda203c0364b067561f44a6f8b1fdb643f31130d6291ee92975850b1f1",
+  "arthroscopy::임플란트·기술::cross_외래·회복": "sha256:1c0e06092133975fbdd376b672b467fbbfcc24ecf4511a12082a97062cf218c7",
+  "arthroscopy::스포츠 복귀::cross_로봇·내비게이션": "sha256:97783e33bf0690ccfc1f772806b642f51392b47a3b32160bc5b85825da98bd7e",
+  "arthroscopy::스포츠 복귀::cross_AI·예측": "sha256:d370ffc2796ab047298523b14ad8f2395af5dad2f09976bc7b1f87d5546f9702",
+  "arthroscopy::AI·예측::clinical_utility": "sha256:8352b4e0f57e426dde34ee38d8abdd6e0519ec89e4edb2c2ea052caa7ba039f1",
+  "arthroscopy::정렬·생체역학::prom_interpretation": "sha256:132c0d3000c17daacef4b9afabd0159b45f9b88a0306809dd57443d35d57e6bb"
  },
- "geminiRan": false,
+ "geminiRan": true,
  "rawJudgmentsSaved": true,
  "counts": {
-  "articles": 1968,
+  "articles": 1965,
   "candidates": 6,
   "judgments": 12,
   "priorArt": 7,
-  "final": 3
+  "final": 2
  }
 }
