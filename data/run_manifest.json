@@ -1,12 +1,12 @@
 {
- "commit": "e89baa3",
+ "commit": "54893e0",
  "workingTreeDirty": false,
  "cacheVersion": "p6.k2.c7.t4.r5",
- "retrievalDate": "2026-10-21",
- "generatedAt": "2026-10-21T14:32:31.138540+00:00",
+ "retrievalDate": "2026-10-22",
+ "generatedAt": "2026-10-22T14:34:02.631117+00:00",
  "period": {
-  "from": "2025-10-21",
-  "to": "2026-10-21"
+  "from": "2025-10-22",
+  "to": "2026-10-22"
  },
  "journalSet": [
   "joa",
@@ -21,16 +21,16 @@
   "ojsm"
  ],
  "pubmedQueries": {
-  "joa": "\"J Arthroplasty\"[jour] AND (\"2025/10/21\"[Date - Publication] : \"2026/10/21\"[Date - Publication])",
-  "at": "\"Arthroplast Today\"[jour] AND (\"2025/10/21\"[Date - Publication] : \"2026/10/21\"[Date - Publication])",
-  "bjj": "\"Bone Joint J\"[jour] AND (\"2025/10/21\"[Date - Publication] : \"2026/10/21\"[Date - Publication])",
-  "jbjsam": "\"J Bone Joint Surg Am\"[jour] AND (\"2025/10/21\"[Date - Publication] : \"2026/10/21\"[Date - Publication])",
-  "corr": "\"Clin Orthop Relat Res\"[jour] AND (\"2025/10/21\"[Date - Publication] : \"2026/10/21\"[Date - Publication])",
-  "acta": "\"Acta Orthop\"[jour] AND (\"2025/10/21\"[Date - Publication] : \"2026/10/21\"[Date - Publication])",
-  "kssta": "\"Knee Surg Sports Traumatol Arthrosc\"[jour] AND (\"2025/10/21\"[Date - Publication] : \"2026/10/21\"[Date - Publication])",
-  "arthroscopy": "\"Arthroscopy\"[jour] AND (\"2025/10/21\"[Date - Publication] : \"2026/10/21\"[Date - Publication])",
-  "ajsm": "\"Am J Sports Med\"[jour] AND (\"2025/10/21\"[Date - Publication] : \"2026/10/21\"[Date - Publication])",
-  "ojsm": "\"Orthop J Sports Med\"[jour] AND (\"2025/10/21\"[Date - Publication] : \"2026/10/21\"[Date - Publication])"
+  "joa": "\"J Arthroplasty\"[jour] AND (\"2025/10/22\"[Date - Publication] : \"2026/10/22\"[Date - Publication])",
+  "at": "\"Arthroplast Today\"[jour] AND (\"2025/10/22\"[Date - Publication] : \"2026/10/22\"[Date - Publication])",
+  "bjj": "\"Bone Joint J\"[jour] AND (\"2025/10/22\"[Date - Publication] : \"2026/10/22\"[Date - Publication])",
+  "jbjsam": "\"J Bone Joint Surg Am\"[jour] AND (\"2025/10/22\"[Date - Publication] : \"2026/10/22\"[Date - Publication])",
+  "corr": "\"Clin Orthop Relat Res\"[jour] AND (\"2025/10/22\"[Date - Publication] : \"2026/10/22\"[Date - Publication])",
+  "acta": "\"Acta Orthop\"[jour] AND (\"2025/10/22\"[Date - Publication] : \"2026/10/22\"[Date - Publication])",
+  "kssta": "\"Knee Surg Sports Traumatol Arthrosc\"[jour] AND (\"2025/10/22\"[Date - Publication] : \"2026/10/22\"[Date - Publication])",
+  "arthroscopy": "\"Arthroscopy\"[jour] AND (\"2025/10/22\"[Date - Publication] : \"2026/10/22\"[Date - Publication])",
+  "ajsm": "\"Am J Sports Med\"[jour] AND (\"2025/10/22\"[Date - Publication] : \"2026/10/22\"[Date - Publication])",
+  "ojsm": "\"Orthop J Sports Med\"[jour] AND (\"2025/10/22\"[Date - Publication] : \"2026/10/22\"[Date - Publication])"
  },
  "priorArtQueries": {
   "임플란트·기술::cross_외래·회복": "(\"knee\"[tiab] OR \"knees\"[tiab]) AND (\"implant\"[tiab] OR \"fixed-bearing\"[tiab] OR \"mobile-bearing\"[tiab] OR \"bearing surface\"[tiab] OR \"cementless\"[tiab] OR \"fixation\"[tiab] OR \"polyethylene\"[tiab] OR \"sensor\"[tiab] OR \"wearable\"[tiab] OR \"smartphone\"[tiab]) AND (\"outpatient\"[tiab] OR \"same-day\"[tiab] OR \"enhanced recovery\"[tiab] OR \"length of stay\"[tiab] OR \"discharge\"[tiab] OR \"opioid\"[tiab] OR \"rehabilitation\"[tiab]) AND (\"2016\"[dp] : \"2026\"[dp])",
@@ -461,9 +461,7 @@
   "41144796",
   "41146838",
   "41146839",
-  "41146840",
   "41146841",
-  "41146843",
   "41147832",
   "41147835",
   "41147842",
@@ -2012,8 +2010,8 @@
   "42897444",
   "42899379"
  ],
- "corpusPmidsHash": "sha256:7fa51c772ad4775a03768a0fc6aed267bb905e04b2b6025348daf347d7b6dcc2",
- "corpusContentHash": "sha256:d7539ebae5fa49a6405d5d07a7f0ba250a8727f065e87bf3deca78a02aeb35b6",
+ "corpusPmidsHash": "sha256:c043617fe6ff673967e259ae434051c7925fd5abaf59f00a6e3c75b110a51d4c",
+ "corpusContentHash": "sha256:399965bfaaee059618b00476394895684ca081e64bfaa40280df73b3e24208f0",
  "llmJudgmentHash": "sha256:4e2b07783770eab336a3acec8e2d9b6952e26b124e7c3aa233404b255c492868",
  "judgmentScopes": {
   "arthroplasty": 6,
@@ -2021,13 +2019,13 @@
  },
  "priorArtResultHash": "sha256:0f8b7dd7893dada475a94e942ca5f975f0a411bc2d7b3a7ae6893a7ce06b0276",
  "rawCorpusSnapshot": {
-  "assetName": "corpus-20261021-48538465.json.gz",
-  "releaseTag": "corpus-20261021",
-  "path": "data/corpus/corpus-20261021-48538465.json.gz",
-  "sha256": "sha256:48538465a527b35a8f14365a4c9739b567c142ce315f770e54038f3a4dfe7fed",
-  "sizeBytes": 354710,
-  "rawBytes": 1357995,
-  "records": 1968,
+  "assetName": "corpus-20261022-bf5f0965.json.gz",
+  "releaseTag": "corpus-20261022",
+  "path": "data/corpus/corpus-20261022-bf5f0965.json.gz",
+  "sha256": "sha256:bf5f0965d72568698013459cc5c9d58cbd3b64d55a5295f5468cb945f4fe13c7",
+  "sizeBytes": 354370,
+  "rawBytes": 1356620,
+  "records": 1966,
   "uploaded": false,
   "note": "저장소에 커밋하지 않습니다. 백테스트·논문화를 위해 Release 자산으로 올리고 uploaded를 true로 바꾸세요."
  },
@@ -2094,7 +2092,7 @@
  "geminiRan": false,
  "rawJudgmentsSaved": true,
  "counts": {
-  "articles": 1968,
+  "articles": 1966,
   "candidates": 6,
   "judgments": 12,
   "priorArt": 8,
