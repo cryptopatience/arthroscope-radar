@@ -1,12 +1,12 @@
 {
- "commit": "3fbd066",
+ "commit": "8eda566",
  "workingTreeDirty": false,
  "cacheVersion": "p6.k2.c7.t4.r5",
- "retrievalDate": "2026-11-07",
- "generatedAt": "2026-11-07T15:44:14.640858+00:00",
+ "retrievalDate": "2026-11-08",
+ "generatedAt": "2026-11-08T16:02:27.094065+00:00",
  "period": {
-  "from": "2025-11-07",
-  "to": "2026-11-07"
+  "from": "2025-11-08",
+  "to": "2026-11-08"
  },
  "journalSet": [
   "joa",
@@ -21,20 +21,20 @@
   "ojsm"
  ],
  "pubmedQueries": {
-  "joa": "\"J Arthroplasty\"[jour] AND (\"2025/11/07\"[Date - Publication] : \"2026/11/07\"[Date - Publication])",
-  "at": "\"Arthroplast Today\"[jour] AND (\"2025/11/07\"[Date - Publication] : \"2026/11/07\"[Date - Publication])",
-  "bjj": "\"Bone Joint J\"[jour] AND (\"2025/11/07\"[Date - Publication] : \"2026/11/07\"[Date - Publication])",
-  "jbjsam": "\"J Bone Joint Surg Am\"[jour] AND (\"2025/11/07\"[Date - Publication] : \"2026/11/07\"[Date - Publication])",
-  "corr": "\"Clin Orthop Relat Res\"[jour] AND (\"2025/11/07\"[Date - Publication] : \"2026/11/07\"[Date - Publication])",
-  "acta": "\"Acta Orthop\"[jour] AND (\"2025/11/07\"[Date - Publication] : \"2026/11/07\"[Date - Publication])",
-  "kssta": "\"Knee Surg Sports Traumatol Arthrosc\"[jour] AND (\"2025/11/07\"[Date - Publication] : \"2026/11/07\"[Date - Publication])",
-  "arthroscopy": "\"Arthroscopy\"[jour] AND (\"2025/11/07\"[Date - Publication] : \"2026/11/07\"[Date - Publication])",
-  "ajsm": "\"Am J Sports Med\"[jour] AND (\"2025/11/07\"[Date - Publication] : \"2026/11/07\"[Date - Publication])",
-  "ojsm": "\"Orthop J Sports Med\"[jour] AND (\"2025/11/07\"[Date - Publication] : \"2026/11/07\"[Date - Publication])"
+  "joa": "\"J Arthroplasty\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
+  "at": "\"Arthroplast Today\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
+  "bjj": "\"Bone Joint J\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
+  "jbjsam": "\"J Bone Joint Surg Am\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
+  "corr": "\"Clin Orthop Relat Res\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
+  "acta": "\"Acta Orthop\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
+  "kssta": "\"Knee Surg Sports Traumatol Arthrosc\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
+  "arthroscopy": "\"Arthroscopy\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
+  "ajsm": "\"Am J Sports Med\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
+  "ojsm": "\"Orthop J Sports Med\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])"
  },
  "priorArtQueries": {
-  "정렬·생체역학::cross_형평성": "(\"knee\"[tiab] OR \"knees\"[tiab]) AND (\"alignment\"[tiab] OR \"kinematic*\"[tiab] OR \"biomechanic*\"[tiab] OR \"balance\"[tiab] OR \"gait\"[tiab] OR \"range of motion\"[tiab] OR \"component position\"[tiab]) AND (\"disparit*\"[tiab] OR \"inequit*\"[tiab] OR \"race\"[tiab] OR \"racial\"[tiab] OR \"ethnic*\"[tiab] OR \"social determinant\"[tiab] OR \"socioeconomic\"[tiab] OR \"insurance\"[tiab] OR \"medicaid\"[tiab] OR \"uninsured\"[tiab] OR \"income\"[tiab] OR \"deprivation\"[tiab]) AND (\"2016\"[dp] : \"2026\"[dp])",
   "전방십자인대·반월상::cross_로봇·내비게이션": "(\"knee\"[tiab] OR \"knees\"[tiab]) AND (\"anterior cruciate\"[tiab] OR \"acl\"[tiab] OR \"aclr\"[tiab] OR \"menisc*\"[tiab] OR \"root repair\"[tiab]) AND (\"robotic\"[tiab] OR \"robot-assisted\"[tiab] OR \"navigation\"[tiab] OR \"computer-assisted\"[tiab] OR \"augmented reality\"[tiab] OR \"patient-specific instrumentation\"[tiab]) AND (\"2016\"[dp] : \"2026\"[dp])",
+  "정렬·생체역학::cross_형평성": "(\"knee\"[tiab] OR \"knees\"[tiab]) AND (\"alignment\"[tiab] OR \"kinematic*\"[tiab] OR \"biomechanic*\"[tiab] OR \"balance\"[tiab] OR \"gait\"[tiab] OR \"range of motion\"[tiab] OR \"component position\"[tiab]) AND (\"disparit*\"[tiab] OR \"inequit*\"[tiab] OR \"race\"[tiab] OR \"racial\"[tiab] OR \"ethnic*\"[tiab] OR \"social determinant\"[tiab] OR \"socioeconomic\"[tiab] OR \"insurance\"[tiab] OR \"medicaid\"[tiab] OR \"uninsured\"[tiab] OR \"income\"[tiab] OR \"deprivation\"[tiab]) AND (\"2016\"[dp] : \"2026\"[dp])",
   "전방십자인대·반월상::cross_감염": "(\"knee\"[tiab] OR \"knees\"[tiab]) AND (\"anterior cruciate\"[tiab] OR \"acl\"[tiab] OR \"aclr\"[tiab] OR \"menisc*\"[tiab] OR \"root repair\"[tiab]) AND (\"infection\"[tiab] OR \"periprosthetic joint infection\"[tiab] OR \"pji\"[tiab] OR \"antibiotic\"[tiab] OR \"septic\"[tiab] OR \"microbiology\"[tiab]) AND (\"2016\"[dp] : \"2026\"[dp])",
   "정렬·생체역학::cross_비용·보건정책": "(\"knee\"[tiab] OR \"knees\"[tiab]) AND (\"alignment\"[tiab] OR \"kinematic*\"[tiab] OR \"biomechanic*\"[tiab] OR \"balance\"[tiab] OR \"gait\"[tiab] OR \"range of motion\"[tiab] OR \"component position\"[tiab]) AND (\"cost\"[tiab] OR \"economic\"[tiab] OR \"value-based\"[tiab] OR \"value based\"[tiab] OR \"high-value care\"[tiab] OR \"low-value care\"[tiab] OR \"cost-effective*\"[tiab] OR \"bundled payment\"[tiab] OR \"health care utilization\"[tiab] OR \"resource utilization\"[tiab]) AND (\"2016\"[dp] : \"2026\"[dp])",
   "감염::prom_measurement": "(\"knee\"[tiab] OR \"knees\"[tiab]) AND (\"infection\"[tiab] OR \"periprosthetic joint infection\"[tiab] OR \"pji\"[tiab] OR \"antibiotic\"[tiab] OR \"septic\"[tiab] OR \"microbiology\"[tiab]) AND (\"patient-reported\"[tiab] OR \"patient reported\"[tiab] OR \"prom\"[tiab] OR \"proms\"[tiab] OR \"promis\"[tiab] OR \"koos\"[tiab] OR \"koos-jr\"[tiab] OR \"womac\"[tiab] OR \"oxford knee\"[tiab] OR \"oks\"[tiab] OR \"forgotten joint\"[tiab] OR \"fjs\"[tiab]) AND (\"2016\"[dp] : \"2026\"[dp])",
@@ -416,7 +416,6 @@
   "41210273",
   "41220248",
   "41229537",
-  "41230424",
   "41230425",
   "41232850",
   "41232853",
@@ -1970,10 +1969,11 @@
   "42994645",
   "42994647",
   "42994651",
-  "42994652"
+  "42994652",
+  "42997733"
  ],
- "corpusPmidsHash": "sha256:5ef2ab72047ce8664352ca8417a5289d134d902d765b64e5d25da29c7dc1292e",
- "corpusContentHash": "sha256:8967e839de9cb8ca1483e3d728608a4b91550bc2da1640ea750f4e7ada20c962",
+ "corpusPmidsHash": "sha256:631e49b510ff9823dae08675f254627fb353c3fa616bc384f8eed47f13bda30d",
+ "corpusContentHash": "sha256:0812bb2c122a6b91ad99e69ad6be3146881017661de314e9abaffa92291df0f5",
  "llmJudgmentHash": "sha256:cc820a70c0bc364ed049dac757596d0db84ae639c69dfdac75e6c84817295d28",
  "judgmentScopes": {
   "arthroplasty": 6,
@@ -1981,12 +1981,12 @@
  },
  "priorArtResultHash": "sha256:cd3ab51e2cec97fe631eb2f6bcf89a81fb0c57e58f04ea3098029f6717b36dd6",
  "rawCorpusSnapshot": {
-  "assetName": "corpus-20261107-261a3fed.json.gz",
-  "releaseTag": "corpus-20261107",
-  "path": "data/corpus/corpus-20261107-261a3fed.json.gz",
-  "sha256": "sha256:261a3fed359c7445c6022eeda9941bc8ad3e5b5484dca18b26046ba62c74bad5",
-  "sizeBytes": 347897,
-  "rawBytes": 1331135,
+  "assetName": "corpus-20261108-8dd41615.json.gz",
+  "releaseTag": "corpus-20261108",
+  "path": "data/corpus/corpus-20261108-8dd41615.json.gz",
+  "sha256": "sha256:8dd41615d14c3c3c8cdaf57f2edfec6810a0ce371c19bf39ac8a79dec586c944",
+  "sizeBytes": 347862,
+  "rawBytes": 1331094,
   "records": 1929,
   "uploaded": false,
   "note": "저장소에 커밋하지 않습니다. 백테스트·논문화를 위해 Release 자산으로 올리고 uploaded를 true로 바꾸세요."
