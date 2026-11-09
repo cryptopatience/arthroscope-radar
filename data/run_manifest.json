@@ -1,12 +1,12 @@
 {
- "commit": "8eda566",
+ "commit": "46a3497",
  "workingTreeDirty": false,
  "cacheVersion": "p6.k2.c7.t4.r5",
- "retrievalDate": "2026-11-08",
- "generatedAt": "2026-11-08T16:02:27.094065+00:00",
+ "retrievalDate": "2026-11-09",
+ "generatedAt": "2026-11-09T19:54:02.997723+00:00",
  "period": {
-  "from": "2025-11-08",
-  "to": "2026-11-08"
+  "from": "2025-11-09",
+  "to": "2026-11-09"
  },
  "journalSet": [
   "joa",
@@ -21,16 +21,16 @@
   "ojsm"
  ],
  "pubmedQueries": {
-  "joa": "\"J Arthroplasty\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
-  "at": "\"Arthroplast Today\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
-  "bjj": "\"Bone Joint J\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
-  "jbjsam": "\"J Bone Joint Surg Am\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
-  "corr": "\"Clin Orthop Relat Res\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
-  "acta": "\"Acta Orthop\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
-  "kssta": "\"Knee Surg Sports Traumatol Arthrosc\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
-  "arthroscopy": "\"Arthroscopy\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
-  "ajsm": "\"Am J Sports Med\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])",
-  "ojsm": "\"Orthop J Sports Med\"[jour] AND (\"2025/11/08\"[Date - Publication] : \"2026/11/08\"[Date - Publication])"
+  "joa": "\"J Arthroplasty\"[jour] AND (\"2025/11/09\"[Date - Publication] : \"2026/11/09\"[Date - Publication])",
+  "at": "\"Arthroplast Today\"[jour] AND (\"2025/11/09\"[Date - Publication] : \"2026/11/09\"[Date - Publication])",
+  "bjj": "\"Bone Joint J\"[jour] AND (\"2025/11/09\"[Date - Publication] : \"2026/11/09\"[Date - Publication])",
+  "jbjsam": "\"J Bone Joint Surg Am\"[jour] AND (\"2025/11/09\"[Date - Publication] : \"2026/11/09\"[Date - Publication])",
+  "corr": "\"Clin Orthop Relat Res\"[jour] AND (\"2025/11/09\"[Date - Publication] : \"2026/11/09\"[Date - Publication])",
+  "acta": "\"Acta Orthop\"[jour] AND (\"2025/11/09\"[Date - Publication] : \"2026/11/09\"[Date - Publication])",
+  "kssta": "\"Knee Surg Sports Traumatol Arthrosc\"[jour] AND (\"2025/11/09\"[Date - Publication] : \"2026/11/09\"[Date - Publication])",
+  "arthroscopy": "\"Arthroscopy\"[jour] AND (\"2025/11/09\"[Date - Publication] : \"2026/11/09\"[Date - Publication])",
+  "ajsm": "\"Am J Sports Med\"[jour] AND (\"2025/11/09\"[Date - Publication] : \"2026/11/09\"[Date - Publication])",
+  "ojsm": "\"Orthop J Sports Med\"[jour] AND (\"2025/11/09\"[Date - Publication] : \"2026/11/09\"[Date - Publication])"
  },
  "priorArtQueries": {
   "전방십자인대·반월상::cross_로봇·내비게이션": "(\"knee\"[tiab] OR \"knees\"[tiab]) AND (\"anterior cruciate\"[tiab] OR \"acl\"[tiab] OR \"aclr\"[tiab] OR \"menisc*\"[tiab] OR \"root repair\"[tiab]) AND (\"robotic\"[tiab] OR \"robot-assisted\"[tiab] OR \"navigation\"[tiab] OR \"computer-assisted\"[tiab] OR \"augmented reality\"[tiab] OR \"patient-specific instrumentation\"[tiab]) AND (\"2016\"[dp] : \"2026\"[dp])",
@@ -1981,9 +1981,9 @@
  },
  "priorArtResultHash": "sha256:cd3ab51e2cec97fe631eb2f6bcf89a81fb0c57e58f04ea3098029f6717b36dd6",
  "rawCorpusSnapshot": {
-  "assetName": "corpus-20261108-8dd41615.json.gz",
-  "releaseTag": "corpus-20261108",
-  "path": "data/corpus/corpus-20261108-8dd41615.json.gz",
+  "assetName": "corpus-20261109-8dd41615.json.gz",
+  "releaseTag": "corpus-20261109",
+  "path": "data/corpus/corpus-20261109-8dd41615.json.gz",
   "sha256": "sha256:8dd41615d14c3c3c8cdaf57f2edfec6810a0ce371c19bf39ac8a79dec586c944",
   "sizeBytes": 347862,
   "rawBytes": 1331094,
