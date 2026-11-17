@@ -1,5 +1,31 @@
 [
  {
+  "at": "2026-11-17T18:38:39.862264+00:00",
+  "date": "2026-11-17",
+  "ok": true,
+  "seconds": 85,
+  "collected": 5542,
+  "analyzed": 1955,
+  "withAbstract": 4414,
+  "totalAvailable": 5542,
+  "capped": false,
+  "journals": 10,
+  "ideas": 6,
+  "sizeMB": 2.02,
+  "ai": {
+   "ran": false,
+   "reason": "마지막 AI 갱신 4일 전 — 지난 결과 재사용",
+   "model": "gemini-3.1-pro-preview",
+   "judged": 12,
+   "suggested": 3,
+   "trends": 2,
+   "priorArt": 8,
+   "final": 3,
+   "failed": 0
+  },
+  "error": null
+ },
+ {
   "at": "2026-11-16T19:40:54.234522+00:00",
   "date": "2026-11-16",
   "ok": true,
@@ -2310,12 +2336,5 @@
    "failed": 0
   },
   "error": null
- },
- {
-  "at": "2026-08-23T13:03:09.943733+00:00",
-  "date": "2026-08-23",
-  "ok": false,
-  "seconds": 0,
-  "error": "'cp949' codec can't encode character '\\u2013' in position 22: illegal multibyte sequence"
  }
 ]
