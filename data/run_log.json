@@ -1,5 +1,31 @@
 [
  {
+  "at": "2026-11-21T16:50:23.057689+00:00",
+  "date": "2026-11-21",
+  "ok": true,
+  "seconds": 68,
+  "collected": 5591,
+  "analyzed": 1985,
+  "withAbstract": 4462,
+  "totalAvailable": 5591,
+  "capped": false,
+  "journals": 10,
+  "ideas": 6,
+  "sizeMB": 2.04,
+  "ai": {
+   "ran": false,
+   "reason": "마지막 AI 갱신 1일 전 — 지난 결과 재사용",
+   "model": "gemini-3.1-pro-preview",
+   "judged": 12,
+   "suggested": 2,
+   "trends": 2,
+   "priorArt": 7,
+   "final": 2,
+   "failed": 0
+  },
+  "error": null
+ },
+ {
   "at": "2026-11-20T17:52:58.255454+00:00",
   "date": "2026-11-20",
   "ok": true,
@@ -2309,32 +2335,6 @@
    "trends": 2,
    "priorArt": 12,
    "final": 14,
-   "failed": 0
-  },
-  "error": null
- },
- {
-  "at": "2026-08-24T10:08:04.739823+00:00",
-  "date": "2026-08-24",
-  "ok": true,
-  "seconds": 67,
-  "collected": 5555,
-  "analyzed": 2028,
-  "withAbstract": 4477,
-  "totalAvailable": 5555,
-  "capped": false,
-  "journals": 10,
-  "ideas": 15,
-  "sizeMB": 2.39,
-  "ai": {
-   "ran": false,
-   "reason": "월요일 — 지난 결과 재사용",
-   "model": "gemini-2.5-pro",
-   "judged": 40,
-   "suggested": 14,
-   "trends": 2,
-   "priorArt": 22,
-   "final": 5,
    "failed": 0
   },
   "error": null
